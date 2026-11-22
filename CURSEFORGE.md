@@ -1,6 +1,6 @@
 # CraftPath – Cheapest Profession Leveling for WoW Forever
 
-![CraftPath route planner: the current craft, the route step by step, where to learn each recipe, and the total cost and crafting time](https://raw.githubusercontent.com/GYPM4H/CraftPath/main/screenshots/gallery-1-planner.png)
+![CraftPath route planner: the current craft, the route step by step, where to learn each recipe, and the total cost and crafting time](https://media.forgecdn.net/attachments/2255/690/gallery-1-planner-png.png)
 
 **CraftPath levels your professions the cheapest (or fastest) way, using the prices on *your* realm right now, and walks you through every step: what to craft, how many times, what to buy, and where to learn each recipe.**
 
@@ -56,7 +56,7 @@ A compact on-screen card that follows you while you craft:
 - **Craft** and **Craft N** buttons: craft one, or as many as the step still needs
 - when to train the next rank, and where
 
-![CraftPath progress tracker: current craft, chance, attempts left, missing materials and a craft button](https://raw.githubusercontent.com/GYPM4H/CraftPath/main/screenshots/gallery-2-tracker.png)
+![CraftPath progress tracker: current craft, chance, attempts left, missing materials and a craft button](https://media.forgecdn.net/attachments/2255/691/gallery-2-tracker-png.png)
 
 ### Fast Auction House scanning
 - **Fast scan:** downloads the whole Auction House in one request (10–30 seconds) and prices every material for **all your professions** at once.
