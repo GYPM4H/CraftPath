@@ -1,7 +1,7 @@
 """CurseForge gallery images: a screenshot on a dark 16:9 card with a caption.
 
 Usage: python tools/make_gallery.py <main_window.png> <tracker.png>
-Writes screenshots/gallery-1-planner.png and media/gallery-2-tracker.png (1600x900).
+Writes screenshots/gallery-1-planner.png and screenshots/gallery-2-tracker.png (1600x900).
 """
 import os
 import sys
