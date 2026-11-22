@@ -465,6 +465,10 @@ function Prices:StartScan(done, mode, noFast)
     ns.SetStatus("Open the Auction House first.")
     return
   end
+  if ns.neutralAH then
+    ns.SetStatus(ns.NEUTRAL_MSG)
+    return
+  end
   onDone = done
   if not noFast and self:FastScanIn() == 0 then return startFast(mode) end
   scanner:SetScript("OnEvent", itemEvents)

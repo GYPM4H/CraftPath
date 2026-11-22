@@ -104,6 +104,9 @@ local function createOnboarding(parent)
     if ns.Prices.scanning then
       self.button:SetText("Scanning...")
       self.button:Disable()
+    elseif ns.neutralAH then
+      self.button:SetText("Neutral AH - not scanned")
+      self.button:Disable()
     elseif ns.atAH then
       self.button:SetText("Scan now")
       self.button:Enable()
@@ -343,7 +346,12 @@ local function create()
   brule:SetHeight(1)
 
   local function ahHint()
-    if ns.Prices.scanning or ns.atAH then return "" end
+    if ns.Prices.scanning then return "" end
+    if ns.neutralAH then
+      return "\n\n|cffff9966This is a neutral Auction House.|r Its listings are separate from your faction's, "
+        .. "so CraftPath doesn't scan here. Scan at your faction's Auction House instead."
+    end
+    if ns.atAH then return "" end
     return "\n\n|cffff9966Open the Auction House to use this.|r"
   end
 
@@ -402,7 +410,9 @@ local function create()
     local msg = ns.status
     if not msg then
       msg = "Open the Auction House to scan prices."
-      if ns.atAH then
+      if ns.neutralAH then
+        msg = ns.NEUTRAL_MSG
+      elseif ns.atAH then
         local wait = ns.Prices:FastScanIn()
         msg = wait == 0 and "Ready: fast scan prices all your professions at once."
           or wait and ("Fast scan ready in %d min. Scan AH checks route items one by one."):format(math.ceil(wait / 60))
@@ -516,8 +526,8 @@ local function create()
     local scanning = ns.Prices.scanning
     self.scan:SetText(scanning and ns.Prices.mode ~= "full" and "Stop" or "Scan AH")
     self.fullScan:SetText(scanning and ns.Prices.mode == "full" and "Stop" or "Full scan")
-    self.scan:SetEnabled((scanning and ns.Prices.mode ~= "full") or (not scanning and ns.atAH) or false)
-    self.fullScan:SetEnabled((scanning and ns.Prices.mode == "full") or (not scanning and ns.atAH) or false)
+    self.scan:SetEnabled((scanning and ns.Prices.mode ~= "full") or (not scanning and ns.atAH and not ns.neutralAH) or false)
+    self.fullScan:SetEnabled((scanning and ns.Prices.mode == "full") or (not scanning and ns.atAH and not ns.neutralAH) or false)
     self:RenderStatus()
 
     local p = ns.Progress()

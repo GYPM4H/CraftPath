@@ -1,5 +1,12 @@
 # CraftPath
 
+## v0.5.1
+
+### Neutral Auction House
+- **CraftPath no longer scans at a neutral (goblin) Auction House** in Booty Bay, Gadgetzan or Everlook. Their listings are separate from your faction's, and one scan there used to overwrite your faction's prices. The scan buttons are disabled there, and the status line explains why.
+- Already scanned at a neutral AH? Type `/cpath resetprices` and scan again at your faction's Auction House.
+- If you use Auctionator, avoid scanning the neutral AH with it too: Auctionator doesn't record which Auction House a price came from, so CraftPath can't tell those prices apart.
+
 ## v0.5.0
 
 Changes since 0.4.0.

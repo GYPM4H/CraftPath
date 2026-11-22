@@ -40,6 +40,39 @@ function ns.FactionMask()
   return f == "Alliance" and 1 or f == "Horde" and 2 or 3
 end
 
+-- Neutral (goblin) auction houses have their own, separate listings. Scanning
+-- one would overwrite your faction's prices, so CraftPath doesn't scan there.
+ns.NEUTRAL_MSG = "Neutral Auction House: not scanned, so it won't mix with your faction's prices."
+local NEUTRAL_TOWNS = { ["Booty Bay"] = true, ["Gadgetzan"] = true, ["Everlook"] = true }
+local NEUTRAL_SPOTS = {           -- uiMapId, x, y (0-100) of each goblin AH
+  { 1434, 26.5, 76.5 },           -- Booty Bay, Stranglethorn Vale
+  { 1446, 51.5, 28.0 },           -- Gadgetzan, Tanaris
+  { 1452, 61.0, 38.0 },           -- Everlook, Winterspring
+}
+function ns.IsNeutralAH()
+  -- the auctioneer you're talking to: faction auctioneers share your faction,
+  -- Steamwheedle goblins have none
+  if UnitExists and UnitExists("npc") then
+    local f = UnitFactionGroup("npc")
+    if f and f == UnitFactionGroup("player") then return false end
+    if not f or f == "Neutral" then return true end
+  end
+  -- fallback: where you are
+  if NEUTRAL_TOWNS[GetSubZoneText and GetSubZoneText() or ""] then return true end
+  if C_Map and C_Map.GetBestMapForPlayer and C_Map.GetPlayerMapPosition then
+    local map = C_Map.GetBestMapForPlayer()
+    local pos = map and C_Map.GetPlayerMapPosition(map, "player")
+    if pos then
+      local x, y = pos:GetXY()
+      for _, s in ipairs(NEUTRAL_SPOTS) do
+        local dx, dy = x * 100 - s[2], y * 100 - s[3]
+        if map == s[1] and dx * dx + dy * dy < 16 then return true end
+      end
+    end
+  end
+  return false
+end
+
 function ns.Prof()
   return ns.Professions[ns.settings.profession] or ns.Professions.Blacksmithing
 end
@@ -595,6 +628,7 @@ ev:SetScript("OnEvent", function(_, event, arg1, arg2, arg3)
     ns.Prices:ScanMerchant()
   elseif event == "AUCTION_HOUSE_SHOW" or event == "AUCTION_HOUSE_CLOSED" then
     ns.atAH = event == "AUCTION_HOUSE_SHOW"
+    ns.neutralAH = ns.atAH and ns.IsNeutralAH() or nil
     ns.status = nil
     if not ns.atAH then ns.Prices:StopScan() end
     if ns.UI and ns.UI:IsShown() then ns.UI:Render() end

@@ -697,4 +697,43 @@ assert pins >= 2, "route tab: one row per place, with a pin"
 # clicking a pin in the tracker sets the waypoint
 lua.execute("_wp = nil; _click(CraftPathTracker.pins[1])")
 assert lua.eval("_wp ~= nil")
+
+# ---- neutral (goblin) auction house: never scanned, faction prices stay -------
+lua.execute("""
+  _fire('AUCTION_HOUSE_CLOSED')
+  _ns.Prices:Realm().ah[2840] = { 123, time() }
+  UnitExists = function(u) return u == 'npc' end
+  UnitFactionGroup = function(u) if u == 'npc' then return nil end return 'Alliance' end
+  _fire('AUCTION_HOUSE_SHOW'); CraftPathFrame:Render()
+""")
+assert lua.eval("_ns.neutralAH") is True
+sent, status = run_scan("scan")
+assert sent == 0 and not lua.eval("_ns.Prices.scanning"), "no scan at a neutral AH"
+assert "Neutral Auction House" in status
+assert lua.eval("_ns.Prices:Realm().ah[2840][1]") == 123, "faction prices untouched"
+assert not lua.eval("CraftPathFrame.scan:IsEnabled()") and not lua.eval("CraftPathFrame.fullScan:IsEnabled()")
+assert "Neutral Auction House" in strip(lua.eval("CraftPathFrame.status:GetText()"))
+# faction auctioneer: scanning allowed again
+lua.execute("""
+  _fire('AUCTION_HOUSE_CLOSED')
+  UnitFactionGroup = function() return 'Alliance' end
+  _fire('AUCTION_HOUSE_SHOW'); CraftPathFrame:Render()
+""")
+assert not lua.eval("_ns.neutralAH") and lua.eval("CraftPathFrame.scan:IsEnabled()")
+# no auctioneer unit (fallback): Booty Bay by sub-zone, then by map position
+lua.execute("""
+  UnitExists = function() return false end
+  GetSubZoneText = function() return 'Booty Bay' end
+""")
+assert lua.eval("_ns.IsNeutralAH()") is True
+lua.execute("""
+  GetSubZoneText = function() return '' end
+  C_Map.GetBestMapForPlayer = function() return 1446 end
+  C_Map.GetPlayerMapPosition = function() return { GetXY = function() return 0.515, 0.285 end } end
+""")
+assert lua.eval("_ns.IsNeutralAH()") is True, "Gadgetzan by position"
+lua.execute("C_Map.GetBestMapForPlayer = function() return 1453 end")
+assert lua.eval("_ns.IsNeutralAH()") is False, "Stormwind"
+lua.execute("UnitExists = nil; C_Map.GetBestMapForPlayer = nil; C_Map.GetPlayerMapPosition = nil")
+print("neutral AH: not scanned, faction prices kept")
 print("\nALL CHECKS PASSED")
