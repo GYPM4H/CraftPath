@@ -4,6 +4,8 @@
 
 Leveling guides assume every material costs the same everywhere. It doesn't. CraftPath scans the Auction House, looks at every recipe you can get, and finds the cheapest (or fastest) path from your current skill to your target. It tells you exactly what to craft, how many times, what to buy, and where to learn each recipe.
 
+![CraftPath route planner: the current craft, the route step by step, where to learn each recipe, and the total cost and crafting time](https://raw.githubusercontent.com/GYPM4H/CraftPath/main/screenshots/gallery-1-planner.png)
+
 ---
 
 ## Supported professions
@@ -30,14 +32,18 @@ Leveling guides assume every material costs the same everywhere. It doesn't. Cra
 - Reads your profession window, so it never tells you to craft something you don't know.
 - If the best route needs a recipe you're missing, **learning it becomes a step on the route**: which trainer (for your faction), which vendor and zone, the Auction House, or a quest.
 - Expert/Artisan ranks for Cooking and First Aid point you to the right book or quest.
-- Trainers are listed by the rank they actually teach, not by their title.
+- Trainers are listed by the rank they actually teach, not by their title, one per city, starting with your current zone.
+- **Click the dot next to a trainer** to set a waypoint on your map and minimap (uses TomTom if you have it).
 
 ### Progress tracker
 A compact on-screen card that follows you while you craft:
 - the current craft and its skill-up chance
 - expected attempts left (average and a safe 90% estimate)
 - materials you're missing (bags and bank)
+- **Craft** and **Craft N** buttons: craft one, or as many as the step still needs
 - when to train the next rank, and where
+
+![CraftPath progress tracker: current craft, chance, attempts left, missing materials and a craft button](https://raw.githubusercontent.com/GYPM4H/CraftPath/main/screenshots/gallery-2-tracker.png)
 
 ### Fast Auction House scanning
 - **Fast scan:** downloads the whole Auction House in one request (10–30 seconds) and prices every material for **all your professions** at once.
