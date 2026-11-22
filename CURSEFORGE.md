@@ -1,8 +1,21 @@
 # CraftPath – Cheapest Profession Leveling for WoW Forever
 
-**Stop following static leveling guides. CraftPath builds a leveling route from the prices on *your* realm, right now.**
+**CraftPath levels your professions the cheapest (or fastest) way, using the prices on *your* realm right now, and walks you through every step: what to craft, how many times, what to buy, and where to learn each recipe.**
 
-Leveling guides assume every material costs the same everywhere. It doesn't. CraftPath scans the Auction House, looks at every recipe you can get, and finds the cheapest (or fastest) path from your current skill to your target. It tells you exactly what to craft, how many times, what to buy, and where to learn each recipe.
+### Key features
+- 💰 **Route from live Auction House prices**: picks the cheapest, fastest or best-balanced recipes from your skill to your target.
+- 📖 **Knows which recipes you have**: never tells you to craft something you don't know. Missing recipes become a step: which trainer, vendor or quest, and what it costs.
+- 📍 **Click-to-waypoint trainers**: one per city, listed by the rank they actually teach. Click the dot to mark them on your map and minimap.
+- ⚡ **Fast AH scan**: downloads the whole Auction House in one go and prices **all your professions** at once.
+- 🎯 **Progress tracker**: current craft, skill-up chance, attempts left, missing materials, and a **Craft** button.
+- 🧮 **Real totals**: materials, recipes, vendor sell-back and an estimate of crafting time.
+
+### Why CraftPath instead of a leveling guide or another addon?
+- **Guides use fixed recipe lists and assume prices are the same everywhere.** CraftPath recalculates the route from your realm's actual prices, so when a material is cheap or expensive on your server, the route changes to match.
+- **Built for WoW Forever.** Its recipes, trainers and vendors come from Forever's own data, including Forever's new recipes and new trainers. Many profession addons still use original Classic data, which Forever has changed.
+- **Trainers by what they really teach.** NPC titles are often wrong (Kitta Firewind is titled "Artisan Enchanter" but teaches Expert). CraftPath uses who actually teaches each rank.
+- **It checks itself against the game.** Skill-up colours are corrected from your profession window, sell prices come from the game, and items made earlier on the route are reused instead of sold and bought again.
+- **Plan, shop, learn and craft in one window.** No switching between a guide, a map addon and an AH addon. Works alongside Auctionator (it uses Auctionator's prices too).
 
 ![CraftPath route planner: the current craft, the route step by step, where to learn each recipe, and the total cost and crafting time](https://raw.githubusercontent.com/GYPM4H/CraftPath/main/screenshots/gallery-1-planner.png)
 
