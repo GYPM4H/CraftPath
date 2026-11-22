@@ -1,7 +1,7 @@
 """CurseForge gallery images: a screenshot on a dark 16:9 card with a caption.
 
 Usage: python tools/make_gallery.py <main_window.png> <tracker.png>
-Writes media/gallery-1-planner.png and media/gallery-2-tracker.png (1600x900).
+Writes screenshots/gallery-1-planner.png and media/gallery-2-tracker.png (1600x900).
 """
 import os
 import sys
@@ -9,7 +9,7 @@ from PIL import Image, ImageDraw, ImageFilter, ImageFont
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.join(HERE, "..")
-OUT = os.path.join(ROOT, "media")
+OUT = os.path.join(ROOT, "screenshots")
 W, H = 1600, 900
 AMBER = (242, 165, 65)
 TEXT = (232, 230, 225)

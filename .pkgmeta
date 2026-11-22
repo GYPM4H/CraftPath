@@ -4,7 +4,7 @@ package-as: CraftPath
 ignore:
   - tools
   - releases
-  - media
+  - screenshots
   - CURSEFORGE.md
   - .gitignore
   - .pkgmeta
