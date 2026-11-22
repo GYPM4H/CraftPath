@@ -2,6 +2,7 @@
 ## Title: CraftPath
 ## Notes: Cheapest / fastest way to level a profession, using live Auction House prices.
 ## Author: GYPM4H
+## X-Curse-Project-ID: 1822686
 ## Version: @project-version@
 ## SavedVariables: CraftPathDB
 ## SavedVariablesPerCharacter: CraftPathCharDB
