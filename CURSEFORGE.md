@@ -1,5 +1,7 @@
 # CraftPath – Cheapest Profession Leveling for WoW Forever
 
+![CraftPath route planner: the current craft, the route step by step, where to learn each recipe, and the total cost and crafting time](https://raw.githubusercontent.com/GYPM4H/CraftPath/main/screenshots/gallery-1-planner.png)
+
 **CraftPath levels your professions the cheapest (or fastest) way, using the prices on *your* realm right now, and walks you through every step: what to craft, how many times, what to buy, and where to learn each recipe.**
 
 ### Key features
@@ -16,8 +18,6 @@
 - **Trainers by what they really teach.** NPC titles are often wrong (Kitta Firewind is titled "Artisan Enchanter" but teaches Expert). CraftPath uses who actually teaches each rank.
 - **It checks itself against the game.** Skill-up colours are corrected from your profession window, sell prices come from the game, and items made earlier on the route are reused instead of sold and bought again.
 - **Plan, shop, learn and craft in one window.** No switching between a guide, a map addon and an AH addon. Works alongside Auctionator (it uses Auctionator's prices too).
-
-![CraftPath route planner: the current craft, the route step by step, where to learn each recipe, and the total cost and crafting time](https://raw.githubusercontent.com/GYPM4H/CraftPath/main/screenshots/gallery-1-planner.png)
 
 ---
 
