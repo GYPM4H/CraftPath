@@ -1,0 +1,25 @@
+## Interface: 16001
+## Title: CraftPath
+## Notes: Cheapest / fastest way to level a profession, using live Auction House prices.
+## Author: GYPM4H
+## Version: @project-version@
+## SavedVariables: CraftPathDB
+## SavedVariablesPerCharacter: CraftPathCharDB
+## OptionalDeps: Auctionator
+## IconTexture: Interface\AddOns\CraftPath\Media\Icon
+## AddonCompartmentFunc: CraftPath_OnCompartmentClick
+
+Data_Blacksmithing.lua
+Data_Cooking.lua
+Data_Enchanting.lua
+Data_FirstAid.lua
+Data_Leatherworking.lua
+Data_Tailoring.lua
+Theme.lua
+Optimizer.lua
+Prices.lua
+Progress.lua
+Core.lua
+Tracker.lua
+UI.lua
+Minimap.lua

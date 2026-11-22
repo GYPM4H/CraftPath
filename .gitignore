@@ -1,0 +1,10 @@
+# build output and local archives
+releases/
+.release/
+*.zip
+*.rar
+
+# Python
+__pycache__/
+*.pyc
+.venv/

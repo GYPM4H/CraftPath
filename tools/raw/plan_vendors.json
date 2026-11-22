@@ -1,0 +1,15 @@
+{
+ "_comment": "Exact recipe vendors from wowhead.com/forever item pages (sold-by): [name, copper, stock, react[A,H], zoneId]",
+ "3682": [["Kendor Kabonka", 1600, -1, [1, null], 1519], ["Nerrist", 1524, -1, [-1, 1], 33], ["Keena", 1600, -1, [null, 1], 45]],
+ "3735": [["Zargh", 1800, -1, [null, 1], 17], ["Vendor-Tron 1000", 1620, -1, [1, 1], 405]],
+ "5483": [["Grimtak", 147, -1, [null, 1], 14], ["Naluk", 148, -1, [null, 1], 16591]],
+ "5771": [["Gina MacGregor", 210, 1, [1, -1], 40], ["Mahu", 211, -1, [null, 1], 1638], ["Andrew Hilbert", 210, 1, [null, 1], 130], ["Valdaron", 210, 1, [1, null], 148]],
+ "6326": [["Martine Tramblay", 38, -1, [-1, 1], 85], ["Kriggon Talsone", 42, -1, [1, -1], 40], ["Tansy Puddlefizz", 38, -1, [1, null], 1537], ["Zansoa", 42, -1, [null, 1], 14], ["Nessa Shadowsong", 37, -1, [1, -1], 141]],
+ "6328": [["Tharynn Bouden", 380, -1, [1, -1], 12], ["Khara Deepwater", 423, -1, [1, null], 38], ["Naal Mistrunner", 423, -1, [null, 1], 1638], ["Nyoma", 421, -1, [1, null], 141], ["Lizbeth Cromwell", 423, -1, [null, 1], 1497], ["Tansy Puddlefizz", 380, -1, [1, null], 1537], ["Killian Sanatha", 400, -1, [null, 1], 130], ["Harn Longcast", 400, -1, [null, 1], 215]],
+ "7089": [["Jun'ha", 1588, 1, [null, 1], 45], ["Brienna Starglow", 1500, 1, [1, -1], 357], ["Norvin Alderman", 1578, -1, [1, null], 36]],
+ "11101": [["Dalria", 2500, 1, [1, -1], 331], ["Kulwia", 2631, 1, [null, 1], 406]],
+ "12231": [["Corporal Bluth", 2850, -1, [1, -1], 33], ["Nerrist", 2858, -1, [-1, 1], 33], ["Vendor-Tron 1000", 2700, -1, [1, 1], 405]],
+ "13949": [["Vivianna", 20117, -1, [1, -1], 357], ["Sheendra Tallgrass", 19000, -1, [null, 1], 357]],
+ "15725": [["Leonard Porter", 13500, 1, [1, -1], 28], ["Werg Thickblade", 12000, 1, [-1, 1], 85]],
+ "16112": [["Deneb Walker", 2444, -1, [1, -1], 45], ["Balai Lok'Wein", 2329, -1, [null, 1], 15]]
+}

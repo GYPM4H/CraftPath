@@ -1,0 +1,10 @@
+# BigWigs Packager: what goes into the CurseForge zip
+package-as: CraftPath
+
+ignore:
+  - tools
+  - releases
+  - CURSEFORGE.md
+  - .gitignore
+  - .pkgmeta
+  - .gitattributes
