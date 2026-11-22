@@ -8,3 +8,8 @@ ignore:
   - .gitignore
   - .pkgmeta
   - .gitattributes
+
+# CurseForge changelog: the top section of CHANGELOG.md
+manual-changelog:
+  filename: CHANGELOG.md
+  markup-type: markdown
