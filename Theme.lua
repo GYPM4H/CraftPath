@@ -81,13 +81,15 @@ end
 
 function T.Tooltip(widget, title, body)
   widget:HookScript("OnEnter", function(self)
-    GameTooltip:SetOwner(self, "ANCHOR_BOTTOM")
-    GameTooltip:AddLine(type(title) == "function" and title() or title)
+    local t = type(title) == "function" and title() or title
     local b = type(body) == "function" and body() or body
-    if b then GameTooltip:AddLine(b, 1, 1, 1, true) end
-    GameTooltip:Show()
+    if not t or t == "" then return end
+    local lines = {}
+    for line in ((b or "") .. "\n"):gmatch("(.-)\n") do table.insert(lines, line) end
+    while lines[#lines] == "" do table.remove(lines) end
+    T.ShowHover(self, t, lines)
   end)
-  widget:HookScript("OnLeave", GameTooltip_Hide)
+  widget:HookScript("OnLeave", function() T.HideHover() end)
 end
 
 local function iconTexture(id)
@@ -139,8 +141,8 @@ function T.Button(parent, label, kind, w, h)
     else
       local sel = self.selected
       T.Backdrop(self, (sel or (hover and enabled)) and T.C.panel2 or T.C.panel,
-        sel and T.C.accent or T.C.border)
-      fs:SetTextColor(unpack(not enabled and { 0.4, 0.42, 0.46, 1 } or sel and T.C.accent or T.C.text))
+        sel and T.C.text or T.C.border)
+      fs:SetTextColor(unpack(not enabled and { 0.4, 0.42, 0.46, 1 } or T.C.text))
     end
   end
   b.Paint = paint
@@ -197,7 +199,7 @@ function T.Toggle(parent, label, get, set, tip)
   local box = T.Panel(b, T.C.panel, T.C.border)
   box:SetSize(18, 18)
   box:SetPoint("LEFT")
-  local check = T.Fill(box, T.C.accent, "ARTWORK")
+  local check = T.Fill(box, T.C.text, "ARTWORK")
   check:SetPoint("TOPLEFT", 4, -4)
   check:SetPoint("BOTTOMRIGHT", -4, 4)
   local fs = T.Text(b, "Body", "text")
@@ -257,7 +259,7 @@ function T.Tabs(parent, tabs, get, set)
     b:SetSize(w, 30)
     b:SetPoint("LEFT", x, 0)
     x = x + w
-    b.line = T.Fill(b, T.C.accent, "ARTWORK")
+    b.line = T.Fill(b, T.C.text, "ARTWORK")
     b.line:SetPoint("BOTTOMLEFT", 8, 0)
     b.line:SetPoint("BOTTOMRIGHT", -8, 0)
     b.line:SetHeight(2)
@@ -374,7 +376,9 @@ end
 -- A pooled list of table rows inside a scroll child.
 -- entry kinds:
 --   { kind = "section", text, right }
---   { kind = "row", icon, item, range, title, titleColor, sub, c2, c2sub, c3, c3sub, active, indent }
+--   { kind = "row", icon, item, range, title, titleColor, sub, c2, c2sub, c3, c3sub, active, indent, pin,
+--     tip = { lines for the hover card, titled with the item's name },
+--     hover = { title, lines } (themed hover card instead of the item tooltip) }
 --   { kind = "callout", text, tone = "info"|"bad"|"good" }
 --   { kind = "note", text }
 --   { kind = "space" }
@@ -394,19 +398,114 @@ function T.Pin(parent, size)
   b:SetScript("OnEnter", function(self)
     local s = self.spot
     if not s then return end
-    GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
-    GameTooltip:AddLine("Set waypoint")
-    GameTooltip:AddLine(("%s, %s (%.1f, %.1f)"):format(s.name, s.zone, s.x, s.y), 1, 1, 1)
-    GameTooltip:AddLine("Marks it on your map and minimap" .. (TomTom and " (TomTom)." or "."), 0.7, 0.7, 0.7)
-    GameTooltip:Show()
+    T.ShowHover(self, "Set waypoint", { ("%s, %s (%.1f, %.1f)"):format(s.name, s.zone, s.x, s.y),
+      T.Muted("Marks it on your map and minimap" .. (TomTom and " (TomTom)." or ".")) }, "right")
   end)
-  b:SetScript("OnLeave", GameTooltip_Hide)
+  b:SetScript("OnLeave", function() T.HideHover() end)
   -- only spots with coordinates are clickable
   function b:SetSpot(s)
     self.spot = (s and s.map and s.x) and s or false
     self:SetShown(self.spot ~= false)
   end
   return b
+end
+
+-- Hover card in the addon's own style; every tooltip in CraftPath uses it.
+-- T.ShowHover(owner, title, lines, where): lines are strings ("" = small gap),
+-- where = "right" (beside the owner) or nil (above/below, whichever fits).
+local hover
+local MAXW = 340
+function T.ShowHover(owner, title, lines, where)
+  if type(lines) == "string" then lines = { lines } end
+  lines = lines or {}
+  if not hover then
+    hover = T.Panel(UIParent, T.C.panel, T.C.border)
+    hover:SetFrameStrata("TOOLTIP")
+    hover:SetClampedToScreen(true)
+    hover.title = T.Text(hover, "Header", "text")
+    hover.title:SetPoint("TOPLEFT", 12, -10)
+    hover.lines, hover.values, hover.rules = {}, {}, {}
+  end
+  hover.title:SetText(title or "")
+  local function natural(fs)
+    return (fs.GetUnboundedStringWidth and fs:GetUnboundedStringWidth()) or fs:GetStringWidth() or 0
+  end
+  -- a line is text, "" (small gap), "---" (divider) or { label, value }
+  -- (value right-aligned, so amounts line up)
+  local w = math.min(MAXW, math.max(160, natural(hover.title)))
+  for i, line in ipairs(lines) do
+    local fs = hover.lines[i]
+    if not fs then
+      fs = T.Text(hover, "Body", "text")
+      fs:SetWordWrap(true)
+      fs:SetJustifyV("TOP")
+      hover.lines[i] = fs
+      hover.values[i] = T.Text(hover, "Body", "text", "RIGHT")
+      hover.rules[i] = T.Fill(hover, T.C.border, "ARTWORK")
+      hover.rules[i]:SetHeight(1)
+    end
+    fs:SetWidth(0)
+    if type(line) == "table" then
+      fs:SetText(line[1])
+      hover.values[i]:SetText(line[2])
+      w = math.min(MAXW, math.max(w, natural(fs) + natural(hover.values[i]) + 28))
+    else
+      fs:SetText(line == "---" and "" or line)
+      w = math.min(MAXW, math.max(w, natural(fs)))
+    end
+  end
+  local y = -10 - (hover.title:GetStringHeight() or 16) - (#lines > 0 and 8 or 0)
+  for i, line in ipairs(lines) do
+    local fs, val, rule = hover.lines[i], hover.values[i], hover.rules[i]
+    fs:ClearAllPoints(); val:ClearAllPoints(); rule:ClearAllPoints()
+    val:Hide(); rule:Hide()
+    if line == "---" then
+      fs:Hide()
+      rule:SetPoint("TOPLEFT", 12, y - 3)
+      rule:SetPoint("TOPRIGHT", -12, y - 3)
+      rule:Show()
+      y = y - 8
+    else
+      fs:SetPoint("TOPLEFT", 12, y)
+      fs:Show()
+      if type(line) == "table" then
+        fs:SetWidth(w - 80)
+        val:SetPoint("TOPRIGHT", -12, y)
+        val:SetWidth(80)
+        val:Show()
+      else
+        fs:SetWidth(w)
+      end
+      y = y - (line == "" and 6 or ((fs:GetStringHeight() or 14) + 4))
+    end
+  end
+  for i = #lines + 1, #hover.lines do hover.lines[i]:Hide(); hover.values[i]:Hide(); hover.rules[i]:Hide() end
+  hover:SetSize(w + 24, -y + 6)
+  hover:ClearAllPoints()
+  if where == "right" then
+    hover:SetPoint("TOPLEFT", owner, "TOPRIGHT", 8, 0)
+  else
+    local bottom = owner.GetBottom and owner:GetBottom()
+    local mid = UIParent.GetHeight and UIParent:GetHeight()
+    if type(bottom) == "number" and type(mid) == "number" and bottom < mid / 2 then
+      hover:SetPoint("BOTTOM", owner, "TOP", 0, 6)
+    else
+      hover:SetPoint("TOP", owner, "BOTTOM", 0, -6)
+    end
+  end
+  hover:Show()
+end
+function T.HideHover() if hover then hover:Hide() end end
+T.HoverText = function() -- for tests
+  if not hover or not hover:IsShown() then return "" end
+  local out = { hover.title:GetText() or "" }
+  for i, fs in ipairs(hover.lines) do
+    if fs:IsShown() then
+      local v = hover.values[i]
+      table.insert(out, (fs:GetText() or "") .. (v:IsShown() and (" | " .. (v:GetText() or "")) or ""))
+    end
+  end
+  return table.concat(out, "\n")
 end
 
 function T.Rows(child, width)
@@ -420,7 +519,7 @@ function T.Rows(child, width)
     r.accent:SetPoint("TOPLEFT")
     r.accent:SetPoint("BOTTOMLEFT")
     r.accent:SetWidth(3)
-    r.range = T.Text(r, "Small", "accent")
+    r.range = T.Text(r, "Small", "muted")
     r.icon = T.Icon(r, 28)
     r.title = T.Text(r, "Body", "text")
     r.sub = T.Text(r, "Small", "muted")
@@ -432,13 +531,12 @@ function T.Rows(child, width)
     r.wide:SetWordWrap(true)
     r.pin = T.Pin(r, 16)
     r:SetScript("OnEnter", function(self)
-      if self.item then
-        GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
-        GameTooltip:SetItemByID(self.item)
-        GameTooltip:Show()
+      if self.hover then return T.ShowHover(self, self.hover.title, self.hover.lines, "right") end
+      if self.tip then
+        T.ShowHover(self, self.item and ns.ItemName(self.item) or "", self.tip, "right")
       end
     end)
-    r:SetScript("OnLeave", GameTooltip_Hide)
+    r:SetScript("OnLeave", function() T.HideHover() end)
     return r
   end
 
@@ -452,7 +550,7 @@ function T.Rows(child, width)
     r.pin:ClearAllPoints()
     r.accent:Hide()
     r.bg:Show()
-    r.item = nil
+    r.item, r.tip, r.hover = nil, nil, nil
   end
 
   function R:Set(entries)
@@ -471,7 +569,7 @@ function T.Rows(child, width)
         h = 34
         r.bg:SetVertexColor(0, 0, 0, 0)
         r.title:SetFontObject(T.Font.Header)
-        r.title:SetTextColor(unpack(T.C.accent))
+        r.title:SetTextColor(unpack(T.C.text))
         r.title:SetPoint("BOTTOMLEFT", 6, 7)
         r.title:SetText(e.text); r.title:Show()
         if e.right then
@@ -496,29 +594,53 @@ function T.Rows(child, width)
       elseif e.kind == "space" then
         r.bg:SetVertexColor(0, 0, 0, 0)
         h = 10
+      elseif e.kind == "header" then
+        -- column labels, laid out exactly like the rows below:
+        -- { kind = "header", range, title, c2, c3, icon = true, pin = true }
+        h = 24
+        r.bg:SetVertexColor(0, 0, 0, 0)
+        local x = 10
+        if e.range then
+          r.range:SetPoint("LEFT", x, 0); r.range:SetText(e.range); r.range:Show()
+          x = x + 66
+        end
+        if e.pin then x = x + 24 end
+        if e.icon then x = x + 36 end
+        r.title:SetFontObject(T.Font.Small)
+        r.title:SetTextColor(unpack(T.C.muted))
+        r.title:SetPoint("LEFT", x, 0); r.title:SetWidth(W - x - 260)
+        r.title:SetText(e.title or ""); r.title:Show()
+        for _, c in ipairs({ { r.c2, e.c2, 136 }, { r.c3, e.c3, 10 } }) do
+          if c[2] then
+            c[1]:SetWidth(120); c[1]:SetPoint("RIGHT", -c[3], 0)
+            c[1]:SetText(T.Muted(c[2])); c[1]:Show()
+          end
+        end
+        stripe = false
+        table.insert(self.text, table.concat({ e.range or "", e.title or "", e.c2 or "", e.c3 or "" }, " | "))
       else -- row
         local two = e.sub or e.c2sub or e.c3sub
         h = two and 44 or 30
         stripe = not stripe
         r.bg:SetVertexColor(1, 1, 1, stripe and 0.03 or 0)
         if e.active then
-          r.bg:SetVertexColor(T.C.accent[1], T.C.accent[2], T.C.accent[3], 0.10)
-          r.accent:SetVertexColor(unpack(T.C.accent)); r.accent:Show()
+          r.bg:SetVertexColor(1, 1, 1, 0.07)
+          r.accent:SetVertexColor(unpack(T.C.text)); r.accent:Show()
         end
         local x = 10 + (e.indent and 28 or 0)
         if e.range then
           r.range:SetPoint("LEFT", x, 0); r.range:SetText(e.range); r.range:Show()
           x = x + 66
         end
-        if e.pin and e.pin.map then
-          r.pin:SetPoint("LEFT", x, 0); r.pin:SetSpot(e.pin)
+        if e.pin then -- keep the column even when there's no dot
+          if e.pin.map then r.pin:SetPoint("LEFT", x, 0); r.pin:SetSpot(e.pin) end
           x = x + 24
         end
         if e.icon or e.item then
           r.icon:SetPoint("LEFT", x, 0); r.icon:SetIcon(e.icon or e.item); r.icon:Show()
           x = x + 36
         end
-        r.item = e.item
+        r.item, r.tip, r.hover = e.item, e.tip, e.hover
         local right = 260
         r.title:SetFontObject(T.Font.Body)
         r.title:SetTextColor(unpack(T.C.text))

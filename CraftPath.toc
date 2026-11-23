@@ -16,6 +16,7 @@ Data_Enchanting.lua
 Data_FirstAid.lua
 Data_Leatherworking.lua
 Data_Tailoring.lua
+Data_Vendors.lua
 Theme.lua
 Optimizer.lua
 Prices.lua

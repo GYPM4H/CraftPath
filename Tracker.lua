@@ -8,6 +8,23 @@ ns.Tracker = Tracker
 local f
 
 ---------------------------------------------------------------- shared model
+local READY = "|TInterface\\RaidFrame\\ReadyCheck-Ready:14:14|t "
+local SHORT = "|TInterface\\RaidFrame\\ReadyCheck-NotReady:14:14|t "
+
+-- Materials as a have/need checklist: "✓ Iron Bar  64/64" (bags + bank).
+-- An item you'd craft yourself (cheaper than buying) says so.
+function ns.Checklist(mats)
+  local out = {}
+  for _, mat in ipairs(mats or {}) do
+    local have = (mat.have or 0) + (mat.bank or 0)
+    local ok = (mat.missing or 0) <= 0
+    local count = ("%d/%d"):format(math.min(have, mat.need), mat.need)
+    local line = (ok and READY or SHORT) .. ns.ItemName(mat.id) .. "  " .. T.Color(ok and "good" or "bad", count)
+    if not ok and mat.craft then line = line .. T.Muted("  craft " .. mat.craft.n) end
+    table.insert(out, line)
+  end
+  return out
+end
 -- What the tracker and the main window's "Now" card show.
 function ns.NowModel(p)
   local m = {
@@ -18,6 +35,8 @@ function ns.NowModel(p)
     learn = p.step.learnHow,
     learnFirst = p.learnFirst, learnAlso = p.learnAlso or {},
   }
+  m.from = math.max(p.rank or p.stepFrom, p.stepFrom)
+  m.checklist = ns.Checklist(p.mats)
   if not p.matsOK then
     local n = 0
     for _, mat in ipairs(p.mats) do if mat.missing > 0 then n = n + 1 end end
@@ -28,15 +47,31 @@ function ns.NowModel(p)
   if nr then
     local rk = nr.rank
     local where = rk.how or (nr.trainers[1] and (nr.trainers[1].name .. ", " .. nr.trainers[1].zone)) or "a trainer"
+    local L = m.learnFirst
+    if L and L.kind == "trainer" and not rk.how and (nr.blocking or nr.ready) then
+      -- learning the recipe at a trainer anyway: list trainers who teach both,
+      -- and don't name them twice
+      local spots = ns.TrainerSpots(math.max(L.tier or 1, rk.tier or 1), 3, L.recipe and L.recipe.id)
+      local copy = {}
+      for k, v in pairs(L) do copy[k] = v end
+      copy.where, copy.spots = {}, spots
+      for _, t in ipairs(spots) do table.insert(copy.where, t.name .. ", " .. t.zone) end
+      m.learnFirst = copy
+      where = nil
+    end
     if nr.blocking then
-      m.rank = { tone = "bad", text = ("Capped at %d - learn %s: %s"):format(rk.cap, rk.next, where) }
+      m.rank = { tone = "bad", text = where and ("Capped at %d - learn %s: %s"):format(rk.cap, rk.next, where)
+        or ("Capped at %d - learn %s there too"):format(rk.cap, rk.next) }
     elseif nr.ready then
-      m.rank = { tone = "info", text = ("You can learn %s now: %s"):format(rk.next, where) }
+      m.rank = { tone = "info", text = where and ("You can learn %s now: %s"):format(rk.next, where)
+        or ("Learn %s there too"):format(rk.next) }
     elseif p.rank >= rk.skill - 10 or p.stepTo > rk.cap then
       m.rank = { tone = "info", text = ("Learn %s at skill %d%s"):format(rk.next, rk.skill,
         rk.level and (", level " .. rk.level) or "") }
     end
   end
+  -- learning step: the places are the message; only a cap (red) adds to it
+  if m.learnFirst and m.rank and m.rank.tone ~= "bad" then m.rank = nil end
   if p.next then
     local n = p.next
     local how = n.learnHow == "known" and "known" or n.learnHow == "starter" and "starter"
@@ -44,6 +79,12 @@ function ns.NowModel(p)
     m.nextText = ("Then %s at %d  (%s)"):format(n.recipe.name, n.from, how)
   end
   return m
+end
+
+-- The detail behind "about N crafts left", for tooltips.
+function ns.NowTip(m)
+  return ("Skill-up chance: %s (about %.1f crafts per point).\nAbout %d crafts on average; %d covers 9 in 10 players."):format(
+    ns.Pct(m.chance), m.tries, m.left, m.safe)
 end
 
 ---------------------------------------------------------------- crafting
@@ -97,6 +138,28 @@ function ns.CraftNow(recipe, count)
     if not i then return ns.Print(recipe.name .. " isn't in your profession window.") end
     DoTradeSkill(i, count)
   end
+end
+
+-- What the main craft button should say: "Open Blacksmithing", "Craft 8",
+-- "No materials". nil when you can't craft this recipe yet.
+function ns.CraftAction(m)
+  if m.learnFirst then return nil end
+  local known = ns.Known()[m.recipe.id] ~= nil or (m.recipe.src:find("s") and not next(ns.Known()))
+  if not known then return nil end
+  if ns.tradeOpen ~= ns.Prof().key then
+    return { text = "Open " .. ns.ProfName(ns.Prof()), enabled = true, count = 0 }
+  end
+  local n = ns.CanCraft(m.recipe)
+  local want = math.max(1, m.left)
+  local count = n and math.min(n, want) or want
+  if n == 0 then return { text = "No materials", enabled = false, count = 0 } end
+  return { text = ("Craft %d"):format(count), enabled = true, count = count }
+end
+
+function ns.DoCraftAction(m)
+  local a = m and ns.CraftAction(m)
+  if not a or not a.enabled then return end
+  if a.count == 0 then ns.OpenProfession() else ns.CraftNow(m.recipe, a.count) end
 end
 
 ---------------------------------------------------------------- frame
@@ -155,13 +218,8 @@ local function create()
   f.stats:SetPoint("TOPLEFT", f.name, "BOTTOMLEFT", 0, -4)
   f.stats:SetPoint("RIGHT", -12, 0)
 
-  -- step progress
-  f.step = T.Bar(f, T.C.good, 14)
-  f.step:SetPoint("TOPLEFT", 12, -88)
-  f.step:SetPoint("TOPRIGHT", -12, -88)
-
   f.lines = {}
-  for i = 1, 6 do
+  for i = 1, 9 do
     local fs = T.Text(f, "Small", "text")
     fs:SetWordWrap(true)
     fs:SetWidth(W - 24)
@@ -169,27 +227,20 @@ local function create()
   end
   -- waypoint dots for lines that name a place
   f.pins = {}
-  for i = 1, 6 do f.pins[i] = T.Pin(f, 14); f.pins[i]:Hide() end
+  for i = 1, 9 do f.pins[i] = T.Pin(f, 14); f.pins[i]:Hide() end
 
-  -- craft buttons
-  f.craft = T.Button(f, "Craft", "primary", 136, 28)
-  f.craft:SetScript("OnClick", function(self)
-    if self.recipe then ns.CraftNow(self.recipe, 1) end
-  end)
+  -- the main action (same as the planner's: Open <Prof> / Craft N)
+  f.craft = T.Button(f, "Craft", "primary", W - 24, 28)
+  f.craft:SetScript("OnClick", function() ns.DoCraftAction(f.model); Tracker:Render() end)
   T.Tooltip(f.craft, "Craft", function()
-    local r = f.craft.recipe
-    if not r then return nil end
-    local s = (ns.tradeOpen == ns.Prof().key) and ("Crafts one " .. r.name .. ".")
-      or ("Opens your " .. ns.ProfName() .. " window first (the game only lets addons craft while it's open), then click again to craft.")
+    local a = f.model and ns.CraftAction(f.model)
+    if not a then return nil end
+    local s = (a.count == 0 and a.enabled)
+      and "Opens your profession window first (the game only lets addons craft while it's open), then click again to craft."
+      or "Crafts as many as this step still needs, limited by the materials in your bags. Moving or casting something else stops it."
     if ns.Prof().key == "Enchanting" then s = s .. "\n\nEnchants need a target: click the item to enchant afterwards." end
     return s
   end)
-  f.craftAll = T.Button(f, "Craft all", "secondary", 136, 28)
-  f.craftAll:SetPoint("LEFT", f.craft, "RIGHT", 8, 0)
-  f.craftAll:SetScript("OnClick", function(self)
-    if self.recipe and self.count and self.count > 0 then ns.CraftNow(self.recipe, self.count) end
-  end)
-  T.Tooltip(f.craftAll, "Craft all", "Crafts as many as this step still needs, limited by the materials in your bags. Moving or casting something else stops it.")
 
   f.empty = T.Text(f, "Body", "muted")
   f.empty:SetPoint("TOPLEFT", 12, -46)
@@ -228,12 +279,12 @@ function Tracker:Render()
 
   local p = ns.Progress()
   local shown = p ~= nil
-  for _, k in ipairs({ "icon", "name", "stats", "step" }) do f[k]:SetShown(shown) end
+  for _, k in ipairs({ "icon", "name", "stats" }) do f[k]:SetShown(shown) end
   f.empty:SetShown(not shown)
   if not shown then
     for _, fs in ipairs(f.lines) do fs:Hide() end
     f.craft:Hide()
-    f.craftAll:Hide()
+    f.model = nil
     for _, pin in ipairs(f.pins) do pin:SetSpot(nil) end
     f.stripe:SetVertexColor(unpack(T.C.border))
     if ns.needsScan then
@@ -246,41 +297,35 @@ function Tracker:Render()
   end
 
   local m = ns.NowModel(p)
+  f.model = m
   local items = {}
-  f.step:SetValue(m.stepPct)
-  f.step.label:SetText(("%d - %d   ·   %d%%"):format(m.stepFrom, m.stepTo, math.floor(m.stepPct * 100 + 0.5)))
   if m.learnFirst then
     -- step 1 is learning the recipe
     local L = m.learnFirst
-    f.stripe:SetVertexColor(unpack(T.C.accent))
+    f.stripe:SetVertexColor(unpack(T.C.text))
     f.icon:SetIcon(L.kind == "trainer" and "Interface\\Icons\\INV_Misc_Book_09" or "Interface\\Icons\\INV_Scroll_03")
-    f.name:SetText(T.Color("accent", "Learn: ") .. m.name)
-    f.stats:SetText(("%s  ·  %s"):format(L.title, ns.Money(L.cost, true)))
+    f.name:SetText("Learn: " .. m.name)
+    f.stats:SetText(("%s  ·  %s"):format(L.title, L.cost > 0 and ns.Money(L.cost, true) or "free"))
+    table.insert(items, T.Color("info", "Learn it from:"))
     for i = 1, math.min(3, #L.where) do
-      table.insert(items, { text = T.Color("text", L.where[i]), spot = L.spots and L.spots[i] or false })
+      table.insert(items, { text = L.where[i], spot = L.spots and L.spots[i] or false })
     end
-    table.insert(items, T.Muted(("Then craft it about %d times (skill %d to %d)."):format(m.left, m.stepFrom, m.stepTo)))
-    if m.missing then table.insert(items, T.Color("bad", "Also buy: ") .. m.missing) end
   else
     local r, g, b = tonumber(m.color:sub(1, 2), 16) / 255, tonumber(m.color:sub(3, 4), 16) / 255, tonumber(m.color:sub(5, 6), 16) / 255
     f.stripe:SetVertexColor(r, g, b, 1)
     f.icon:SetIcon(m.recipe.make and m.recipe.make[1] or ("Interface\\Icons\\" .. (prof.icon or "")))
     f.name:SetText("|cff" .. m.color .. m.name .. "|r")
-    f.stats:SetText(("%s chance  ·  about %d left %s%s"):format(
-      T.Color("text", ns.Pct(m.chance)), m.left, T.Muted(("(90%%: %d)"):format(m.safe)),
-      m.crafted > 0 and ("  ·  crafted " .. m.crafted) or ""))
-    if m.missing then
-      table.insert(items, T.Color("bad", "Missing: ") .. m.missing)
-    else
-      table.insert(items, T.Color("good", "Materials ready"))
-    end
-  end
-  for _, L in ipairs(m.learnAlso) do
-    table.insert(items, T.Color("accent", "Also learn " .. L.recipe.name .. ": ") .. L.title .. " " .. ns.Money(L.cost, true))
+    f.stats:SetText(("Skill %d to %d  ·  about %d crafts left"):format(m.from, m.stepTo, m.left))
   end
   if m.rank then table.insert(items, T.Color(m.rank.tone, m.rank.text)) end
-  if m.nextText then table.insert(items, T.Muted(m.nextText)) end
-  local y = -110
+  -- materials only once you can craft it
+  if not m.learnFirst then
+    for _, line in ipairs(m.checklist) do table.insert(items, line) end
+  end
+  for _, L in ipairs(m.learnAlso) do
+    table.insert(items, "Also learn " .. L.recipe.name .. ": " .. L.title .. " " .. ns.Money(L.cost, true))
+  end
+  local y = -84
   for i, fs in ipairs(f.lines) do
     local item = items[i]
     local pin = f.pins[i]
@@ -307,38 +352,13 @@ function Tracker:Render()
       fs:Hide()
     end
   end
-  -- craft buttons (not while you still have to learn the recipe)
-  local canShow = not m.learnFirst and ns.Known()[m.recipe.id] ~= nil
-    or (not m.learnFirst and m.recipe.src:find("s") and not next(ns.Known()))
-  f.craft:SetShown(canShow)
-  f.craftAll:SetShown(canShow and ns.tradeOpen == prof.key)
-  if canShow then
-    f.craft.recipe, f.craftAll.recipe = m.recipe, m.recipe
+  local a = ns.CraftAction(m)
+  f.craft:SetShown(a ~= nil)
+  if a then
     f.craft:ClearAllPoints()
     f.craft:SetPoint("TOPLEFT", 12, y - 4)
-    -- alone ("Open Blacksmithing") it spans the card; with "Craft N" they share it
-    f.craft:SetWidth(ns.tradeOpen == prof.key and math.floor((W - 24 - 8) / 2) or (W - 24))
-    f.craftAll:SetWidth(math.floor((W - 24 - 8) / 2))
-    if ns.tradeOpen ~= prof.key then
-      f.craft:SetText("Open " .. ns.ProfName(prof))
-      f.craft:Enable()
-    else
-      local n = ns.CanCraft(m.recipe)
-      local want = math.max(1, m.left)
-      local count = n and math.min(n, want) or want
-      f.craftAll.count = count
-      if n == 0 then
-        f.craft:SetText("No materials")
-        f.craft:Disable()
-        f.craftAll:SetText("Craft all")
-        f.craftAll:Disable()
-      else
-        f.craft:SetText("Craft")
-        f.craft:Enable()
-        f.craftAll:SetText(("Craft %d"):format(count))
-        f.craftAll:Enable()
-      end
-    end
+    f.craft:SetText(a.text)
+    f.craft:SetEnabled(a.enabled)
     y = y - 4 - 28 - 6
   end
   f:SetHeight(-y + 8)
@@ -351,11 +371,10 @@ function Tracker:Text()
   for _, k in ipairs({ "name", "stats", "empty" }) do
     if f[k]:IsShown() then table.insert(out, f[k]:GetText() or "") end
   end
-  if f.step:IsShown() then table.insert(out, f.step.label:GetText() or "") end
   for i, fs in ipairs(f.lines) do
     if fs:IsShown() then table.insert(out, (f.pins[i]:IsShown() and "(pin) " or "") .. (fs:GetText() or "")) end
   end
-  for _, b in ipairs({ f.craft, f.craftAll }) do
+  for _, b in ipairs({ f.craft }) do
     if b:IsShown() then table.insert(out, "[" .. (b:GetText() or "") .. (b:IsEnabled() and "" or " (disabled)") .. "]") end
   end
   return table.concat(out, "\n")

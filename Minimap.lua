@@ -64,11 +64,11 @@ local function createButton()
 
   b:SetScript("OnClick", function(_, mouse) onClick(mouse) end)
   b:SetScript("OnEnter", function(self)
-    GameTooltip:SetOwner(self, "ANCHOR_LEFT")
-    tooltip(GameTooltip)
-    GameTooltip:Show()
+    local rank = ns.ReadSkill()
+    ns.T.ShowHover(self, "CraftPath", { ("%s  %s / %d"):format(ns.ProfName(ns.Prof()), rank or "?", ns.Target()),
+      ns.T.Muted("Left-click: planner   Right-click: tracker") })
   end)
-  b:SetScript("OnLeave", GameTooltip_Hide)
+  b:SetScript("OnLeave", function() ns.T.HideHover() end)
   -- drag around the minimap edge
   b:SetScript("OnDragStart", function(self)
     self:SetScript("OnUpdate", function()

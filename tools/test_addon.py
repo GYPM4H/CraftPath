@@ -35,6 +35,10 @@ local function newRegion()
     if k == "CreateFontString" or k == "CreateTexture" then fn = function() return newRegion() end
     elseif k == "SetScript" then fn = function(self, n, f) self.scripts[n] = f end
     elseif k == "GetScript" then fn = function(self, n) return self.scripts[n] end
+    elseif k == "HookScript" then fn = function(self, n, f)
+      local old = self.scripts[n]
+      self.scripts[n] = old and function(...) old(...); f(...) end or f
+    end
     elseif k == "RegisterEvent" or k == "RegisterUnitEvent" then fn = function(self, e) self.events[e] = true end
     elseif k == "UnregisterAllEvents" then fn = function(self) self.events = {} end
     elseif k == "UnregisterEvent" then fn = function(self, e) self.events[e] = nil end
@@ -162,6 +166,16 @@ function _click(widget, button) widget.scripts.OnClick(widget, button or "LeftBu
 lua = lua51.LuaRuntime(unpack_returned_tuples=True)
 lua.execute(MOCK)
 lua.execute("_ns = {}")
+# record every global the addon's own files create (Ketho-style audit)
+lua.execute("""
+  _addonGlobals = {}
+  setmetatable(_G, { __newindex = function(t, k, v)
+    local info = debug.getinfo(2, "S")
+    local src = info and info.source or ""
+    if src:match("^@[%w_]+%.lua$") then _addonGlobals[k] = src:sub(2) end
+    rawset(t, k, v)
+  end })
+""")
 toc = open(os.path.join(ADDON, "CraftPath.toc"), encoding="utf-8").read()
 files = [l.strip() for l in toc.splitlines() if l.strip() and not l.startswith("#")]
 loadstring = lua.eval("function(s, n) local c, e = loadstring(s, n); return c or false, e or \"\" end")
@@ -173,7 +187,7 @@ for fn in files:
     lua.execute("local c = ...; c('CraftPath', _ns)", chunk)
 print("loaded:", ", ".join(files))
 
-strip = lambda s: re.sub(r"\|c[0-9a-fA-F]{8}|\|r", "", s or "")
+strip = lambda s: re.sub(r"\|c[0-9a-fA-F]{8}|\|r|\|T[^|]*\|t", "", s or "")
 ui_text = lambda: strip(lua.eval("_ns.UI:ContentText()"))
 card_text = lambda: strip(lua.eval("_ns.UI:CardText()"))
 footer = lambda: strip(lua.eval("_ns.UI:FooterText()"))
@@ -267,12 +281,23 @@ show("TRACKER (skill 40, recipe not learned yet)", tracker_text())
 p = lua.eval("_ns.Progress()")
 assert p.recipe.name == "Rough Grinding Stone", p.recipe.name
 assert p.learnFirst is not None and p.learnFirst.kind == "trainer"
-assert "Learn: Rough Grinding Stone" in tracker_text() and "Then craft it" in tracker_text()
+assert "Learn: Rough Grinding Stone" in tracker_text() and "crafts" not in tracker_text(), "learning step: no craft count"
 assert "Ironforge" in tracker_text() or "Stormwind" in tracker_text(), "names a trainer"
 lua.execute("_ns.UI:Toggle()") if not lua.eval("CraftPathFrame:IsShown()") else None
 lua.execute("_ns.settings.tab = 'plan'; CraftPathFrame:Render()")
 show("ROUTE with learn steps", ui_text(), 8)
-assert "Learn Rough Grinding Stone" in ui_text()
+route_line = lambda name: next(l for l in ui_text().splitlines() if name in l)
+def route_hover(name):
+    lua.execute(f"""for _, r in ipairs(CraftPathFrame.rows.pool) do
+      if r:IsShown() and r.title:GetText():find("{name}", 1, true) then r:GetScript("OnEnter")(r); break end end""")
+    return strip(lua.eval("_ns.T.HoverText()"))
+line = route_line("Rough Grinding Stone")
+assert "learn first" not in line and "Rough Stone" not in line, "route row: just the recipe"
+h = route_hover("Rough Grinding Stone")
+show("ROUTE HOVER", h, 12)
+assert "Materials" not in h and "Recipe" in h and "Stormwind" in h, "not learned: where to get it, no materials"
+assert "Learn it first" not in h and "trainer" not in h, "just 'Recipe' and the places"
+lua.execute("_ns.T.HideHover()")
 assert "LEARN FIRST" in card_text()
 show("NOW CARD (learn first)", card_text())
 # starter recipes the profession window says you DON'T have aren't assumed known
@@ -282,7 +307,10 @@ lua.execute("_fire('NEW_RECIPE_LEARNED', 3320)")
 assert any("Learned Rough Grinding Stone" in m for m in chat())
 p = lua.eval("_ns.Progress()")
 assert p.learnFirst is None and "Learn:" not in tracker_text()
-assert "Learn Rough Grinding Stone" not in ui_text()
+lua.execute("_ns.settings.tab = 'plan'; CraftPathFrame:Render()")
+h = route_hover("Rough Grinding Stone")
+assert "Recipe" in h and "Stormwind" not in h and "Rough Stone" in h, "known recipe: green, materials, no places"
+lua.execute("_ns.T.HideHover()")
 show("TRACKER (after learning)", tracker_text())
 
 p = lua.eval("_ns.Progress()")
@@ -295,7 +323,7 @@ assert p.mats[1].missing == 0 and p.mats[1].bank == 3, "bag counting"
 for _ in range(3):
     lua.execute(f"_fire('UNIT_SPELLCAST_SUCCEEDED', 'player', 'guid', {step_recipe})")
 assert lua.eval("_ns.Progress()").crafted == 3, "craft counting"
-assert "crafted 3" in tracker_text()
+assert "crafts left" in tracker_text() and "crafts left" in card_text()
 lua.execute(f"_skill = {step_to}; _fire('CHAT_MSG_SKILL')")
 assert any("Next: craft" in m or "Next: learn" in m for m in chat()), "step change announced"
 print("announce:", [m for m in chat() if "Next:" in m][-1])
@@ -311,6 +339,7 @@ for tab in ["plan", "mats", "shop", "train"]:
     show(f"MAIN: {tab}", ui_text(), 10)
 show("NOW CARD (capped)", card_text())
 assert "Capped at 75" in card_text()
+assert "learn Journeyman there too" in card_text(), "trainers named once"
 
 lua.execute("UnitFactionGroup = function() return 'Horde' end; _ns.settings.tab = 'train'; CraftPathFrame:Render()")
 assert "Orgrimmar" in ui_text() or "Undercity" in ui_text() or "Thunder Bluff" in ui_text()
@@ -606,13 +635,19 @@ lua.execute("_ns.Refresh()")
 show("TRACKER window open", tracker_text(), 20)
 rid = lua.eval("_ns.Progress().recipe.id")
 left = lua.eval("math.ceil(_ns.Progress().left - 1e-9)")
-assert "[Craft]" in tracker_text() and f"[Craft {min(7, left)}]" in tracker_text()
-lua.execute("_click(CraftPathTracker.craft); _click(CraftPathTracker.craftAll)")
-assert lua.eval("_crafted[1][1]") == rid and lua.eval("_crafted[1][2]") == 1
+assert f"[Craft {min(7, left)}]" in tracker_text()
+lua.execute("_click(CraftPathTracker.craft)")
+assert lua.eval("_crafted[1][1]") == rid and lua.eval("_crafted[1][2]") == min(7, left)
+# the planner's card has the same button
+lua.execute("if not CraftPathFrame:IsShown() then _ns.UI:Toggle() end; CraftPathFrame:Render()")
+assert f"[Craft {min(7, left)}]" in card_text()
+lua.execute("_click(CraftPathFrame.card.craft)")
 assert lua.eval("_crafted[2][2]") == min(7, left)
 # nothing craftable -> disabled
 lua.execute("C_TradeSkillUI.GetRecipeInfo = function(id) return { learned = true, numAvailable = 0 } end; _ns.Refresh()")
 assert "[No materials (disabled)]" in tracker_text()
+lua.execute("CraftPathFrame:Render()")
+assert "[No materials (disabled)]" in card_text()
 # in combat: refuses
 lua.execute("C_TradeSkillUI.GetRecipeInfo = function(id) return { learned = true, numAvailable = 3 } end; _ns.Refresh()")
 lua.execute("InCombatLockdown = function() return true end; _click(CraftPathTracker.craft); InCombatLockdown = nil")
@@ -690,12 +725,12 @@ show("CARD (learn first, places)", card_text(), 20)
 assert card_text().count("(pin) ") >= 2, "places in the card, each with a pin"
 show("TRACKER (learn first, places)", tracker_text(), 20)
 assert tracker_text().count("(pin) ") >= 2
-pins = lua.eval("""(function() local n = 0
-  for _, r in ipairs(CraftPathFrame.rows.pool) do if r:IsShown() and r.pin:IsShown() then n = n + 1 end end
-  return n end)()""")
-assert pins >= 2, "route tab: one row per place, with a pin"
+tip = lua.eval("""(function()
+  for _, r in ipairs(CraftPathFrame.rows.pool) do if r:IsShown() and type(r.hover) == "table" and r.hover.lines[1]:find("Stormwind", 1, true) == nil and table.concat(r.hover.lines, " / "):find("Stormwind", 1, true) then return table.concat(r.hover.lines, " / ") end end
+  end)()""")
+assert tip and "Stormwind" in tip, "route tab: trainers in the row's tooltip"
 # clicking a pin in the tracker sets the waypoint
-lua.execute("_wp = nil; _click(CraftPathTracker.pins[1])")
+lua.execute("_wp = nil; for _, p in ipairs(CraftPathTracker.pins) do if p:IsShown() then _click(p); break end end")
 assert lua.eval("_wp ~= nil")
 
 # ---- neutral (goblin) auction house: never scanned, faction prices stay -------
@@ -736,4 +771,36 @@ lua.execute("C_Map.GetBestMapForPlayer = function() return 1453 end")
 assert lua.eval("_ns.IsNeutralAH()") is False, "Stormwind"
 lua.execute("UnitExists = nil; C_Map.GetBestMapForPlayer = nil; C_Map.GetPlayerMapPosition = nil")
 print("neutral AH: not scanned, faction prices kept")
+
+# ---- every hover uses CraftPath's own card ------------------------------------
+lua.execute("if not CraftPathFrame:IsShown() then _ns.UI:Toggle() end; CraftPathFrame:Render()")
+lua.execute("CraftPathFrame.scan:GetScript('OnEnter')(CraftPathFrame.scan)")
+h = strip(lua.eval("_ns.T.HoverText()"))
+assert h.startswith("Scan AH") and "all your professions" in h, h
+lua.execute("CraftPathFrame.scan:GetScript('OnLeave')(CraftPathFrame.scan)")
+assert lua.eval("_ns.T.HoverText()") == ""
+lua.execute("CraftPathFrame.totalHit:GetScript('OnEnter')(CraftPathFrame.totalHit)")
+h = strip(lua.eval("_ns.T.HoverText()"))
+assert h.startswith("Route cost") and "Materials" in h, h
+lua.execute("_ns.T.HideHover()")
+print("hovers: themed card for buttons and the total")
+
+# ---- recipe vendors: your faction's, nearest first ---------------------------
+lua.execute("_prevProf = _ns.settings.profession; _ns.settings.profession = 'Cooking'")
+r = lua.eval("(function() for _, r in ipairs(_ns.Professions.Cooking.recipes) do if r.id == 7827 then return r end end end)()")
+where = list(lua.eval("_ns.LearnInfo")(r, "Vendor", 400).where.values())
+print("Rainbow Fin Albacore vendors:", where)
+assert where[0] == "Catherine Leland, Stormwind City", "capital first"
+spot = lua.eval("_ns.LearnInfo")(r, "Vendor", 400).spots[1]
+assert spot and spot.map == 1453 and abs(spot.x - 55.1) < 0.01, "vendor waypoint dot"
+assert not any("Durotar" in w or "Orgrimmar" in w for w in where)
+lua.execute("_ns.settings.profession = _prevProf")
+
+# ---- globals: only the ones WoW needs ---------------------------------------
+ALLOWED = {"CraftPathDB", "CraftPathCharDB", "SLASH_CRAFTPATH1", "SLASH_CRAFTPATH2",
+           "CraftPath_OnCompartmentClick", "CraftPathFrame", "CraftPathTracker"}
+made = dict(lua.eval("_addonGlobals").items())
+print("globals created by the addon:", sorted(made))
+extra = {k: v for k, v in made.items() if k not in ALLOWED}
+assert not extra, f"unexpected globals: {extra}"
 print("\nALL CHECKS PASSED")

@@ -1,5 +1,26 @@
 # CraftPath
 
+## v0.6.0
+
+Known issue: a trainer listed under "Learn it from" may not actually teach that recipe in Forever (e.g. Journeyman trainers don't teach Green Iron Bracers). A fix using each trainer's real recipe list is coming in the next update.
+
+### Cleaner main window and tracker
+- **The current craft is the focus:** the main card shows what to craft, about how many crafts are left, and a **have/need checklist** of materials (e.g. Iron Bar 0/64), with a **Craft** button.
+- **Each number shown once:** no more stat tiles. Skill appears once, crafts left are counted from your current skill everywhere, and the skill-up chance and safe estimate are in the card's tooltip.
+- **Materials and Shopping are one tab:** Shopping lists this step first, then the rest of the route.
+- **Route table:** just the skill range, recipe, crafts and cost. Hover a recipe for a small card: "Recipe" in green with its materials if you know it, or in red with where to get it if you don't.
+- **Column headers** on the Route (Skill | Recipe | Crafts | Cost), Shopping and Trainers tables. Training a new rank is a row in the route at its skill range (e.g. 50 - 75 Train Journeyman), not a banner.
+- **Shopping rows:** price each and AH or Vendor. Hover for the price's source and age.
+- **Trainers tab:** the next rank and the trainers, each listed once (one per zone) with the highest rank they teach, instead of the same trainers repeated under every recipe.
+- Recipes you still have to learn don't list their materials yet (main card, tracker and route hover).
+- **Recipe vendors get waypoint dots too**, and are listed nearest first (your zone, then your faction's capitals), like trainers.
+- Learning steps no longer say how many crafts follow: they show only what to learn and where.
+- **All hovers use CraftPath's own style** (buttons, totals, route rows, waypoint dots, minimap button) instead of the game's tooltip.
+- **Footer:** one total; hover it for materials + recipes − vendor sales.
+- **Colour:** recipe names keep their difficulty colour; everything else is neutral, with amber only on the main buttons.
+- The tracker matches: one **Craft** button, the same checklist, no step bar.
+- The tracker toggle moved to Options (and the minimap button's right-click).
+
 ## v0.5.1
 
 ### Neutral Auction House

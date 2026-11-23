@@ -1,8 +1,8 @@
 -- CraftPath main window.
 --   header:   title, profession dropdown, options, close
 --   controls: target skill, planning mode, tracker toggle
---   now card: current craft, chance, attempts, progress, alerts
---   tabs:     Route / Materials / Shopping / Trainers (table rows)
+--   now card: current craft, crafts left, have/need checklist, Craft button
+--   tabs:     Route / Shopping / Trainers (table rows)
 --   footer:   totals, scan status, Scan AH / Full scan
 local ADDON, ns = ...
 local T = ns.T
@@ -15,8 +15,6 @@ local MODES = {
   { "fast", "Fastest", "Fewest crafts, whatever it costs." },
 }
 local MODE_LABEL = { balanced = "Balanced", cheap = "Cheapest", fast = "Fastest" }
-local SOURCE = { ah = "AH", auctionator = "Auctionator", vendor = "Vendor", craft = "Craft" }
-local TIER_NAME = { [1] = "", [2] = "Journeyman", [3] = "Expert", [4] = "Artisan" }
 
 local f
 
@@ -32,7 +30,7 @@ local function createOptions(anchor)
   o:SetPoint("TOPRIGHT", anchor, "BOTTOMRIGHT", 6, -8)
   o:EnableMouse(true)
   o:Hide()
-  local title = T.Text(o, "Header", "accent")
+  local title = T.Text(o, "Header", "text")
   title:SetPoint("TOPLEFT", 14, -12)
   title:SetText("Options")
 
@@ -141,11 +139,8 @@ local function create()
   f.logo:SetIcon("Interface\\AddOns\\CraftPath\\Media\\Icon")
   f.logo.tex:SetTexCoord(0, 1, 0, 1)
   f.title = T.Text(f, "Title", "text")
-  f.title:SetPoint("TOPLEFT", f.logo, "TOPRIGHT", 10, -1)
+  f.title:SetPoint("LEFT", f.logo, "RIGHT", 10, 0)
   f.title:SetText("CraftPath")
-  f.subtitle = T.Text(f, "Small", "muted")
-  f.subtitle:SetPoint("TOPLEFT", f.title, "BOTTOMLEFT", 0, -2)
-  f.subtitle:SetText("Profession leveling planner")
 
   f.close = T.CloseButton(f)
   f.close:SetPoint("TOPRIGHT", -PAD, -19)
@@ -205,95 +200,76 @@ local function create()
     function(v) ns.settings.mode = v; ns.Refresh() end, 96)
   f.mode:SetPoint("LEFT", modeLabel, "RIGHT", 10, 0)
 
-  f.trackerBtn = T.Button(f, "Tracker", "secondary", 110, 26)
-  f.trackerBtn:SetPoint("TOPRIGHT", -PAD, -66)
-  f.trackerBtn:SetScript("OnClick", function() ns.Tracker:Toggle(); f:Render() end)
 
   -- now card ----------------------------------------------------------------
+  -- One job: what to craft now, how many, and what you still need.
+  local CARD_H = 196
   local card = T.Panel(f, T.C.panel, T.C.border)
-  card:SetPoint("TOPLEFT", PAD, -106)
-  card:SetPoint("TOPRIGHT", -PAD, -106)
-  card:SetHeight(214)
+  card:SetPoint("TOPLEFT", PAD, -100)
+  card:SetPoint("TOPRIGHT", -PAD, -100)
+  card:SetHeight(CARD_H)
+  card:EnableMouse(true)
   f.card = card
 
   card.icon = T.Icon(card, 46)
   card.icon:SetPoint("TOPLEFT", 14, -14)
   card.kicker = T.Text(card, "Tiny", "muted")
   card.kicker:SetPoint("TOPLEFT", card.icon, "TOPRIGHT", 12, 0)
-  card.kicker:SetText("CRAFT NOW")
   card.name = T.Text(card, "Big", "text")
   card.name:SetPoint("TOPLEFT", card.kicker, "BOTTOMLEFT", 0, -3)
-  card.name:SetPoint("RIGHT", -200, 0)
-  card.sub = T.Text(card, "Small", "muted")
+  card.name:SetPoint("RIGHT", -150, 0)
+  card.sub = T.Text(card, "Body", "text")
   card.sub:SetPoint("TOPLEFT", card.name, "BOTTOMLEFT", 0, -4)
-  card.sub:SetPoint("RIGHT", -200, 0)
+  card.sub:SetPoint("RIGHT", -150, 0)
 
+  -- overall progress: the one place your skill is shown
   card.skill = T.Text(card, "Title", "text", "RIGHT")
-  card.skill:SetPoint("TOPRIGHT", -14, -16)
-  card.skillSub = T.Text(card, "Small", "muted", "RIGHT")
-  card.skillSub:SetPoint("TOPRIGHT", card.skill, "BOTTOMRIGHT", 0, -4)
-
+  card.skill:SetPoint("TOPRIGHT", -14, -18)
   card.total = T.Bar(card, T.C.info, 4)
   card.total:SetPoint("TOPLEFT", 14, -72)
   card.total:SetPoint("TOPRIGHT", -14, -72)
   card.total.label:Hide()
+  T.Tooltip(card, function() return card.tipTitle or "" end, function() return card.tip end)
 
-  -- stat tiles
-  card.tiles = {}
-  local tileNames = { "SKILL-UP CHANCE", "ATTEMPTS LEFT", "THIS STEP", "CRAFTED" }
-  local tileW = (W - PAD * 2 - 28 - 3 * 10) / 4
-  for i, name in ipairs(tileNames) do
-    local t = T.Panel(card, T.C.panel2, { 0, 0, 0, 0 })
-    t:SetSize(tileW, 56)
-    t:SetPoint("TOPLEFT", 14 + (i - 1) * (tileW + 10), -86)
-    t.label = T.Text(t, "Tiny", "muted")
-    t.label:SetPoint("TOPLEFT", 10, -8)
-    t.label:SetText(name)
-    t.value = T.Text(t, "Title", "text")
-    t.value:SetPoint("TOPLEFT", 10, -24)
-    t.sub = T.Text(t, "Small", "muted")
-    t.sub:SetPoint("LEFT", t.value, "RIGHT", 6, -1)
-    card.tiles[i] = t
-  end
-  card.stepBar = T.Bar(card.tiles[3], T.C.good, 3)
-  card.stepBar:SetPoint("BOTTOMLEFT", 10, 8)
-  card.stepBar:SetPoint("BOTTOMRIGHT", -10, 8)
-  card.stepBar.label:Hide()
-
-  card.alerts = {}
-  for i = 1, 3 do
-    local a = CreateFrame("Frame", nil, card)
-    a:SetHeight(18)
-    a.dot = T.Fill(a, T.C.info, "ARTWORK")
-    a.dot:SetSize(6, 6)
-    a.dot:SetPoint("LEFT", 0, 0)
-    a.text = T.Text(a, "Small", "text")
-    a.text:SetPoint("LEFT", 12, 0)
-    a.text:SetPoint("RIGHT")
-    a:SetPoint("TOPLEFT", 16, -150 - (i - 1) * 20)
-    a:SetPoint("RIGHT", -14, 0)
-    card.alerts[i] = a
+  -- left: have/need checklist (+ one notice line)
+  card.lines = {}
+  for i = 1, 5 do
+    local fs = T.Text(card, "Body", "text")
+    fs:SetPoint("TOPLEFT", 16, -88 - (i - 1) * 20)
+    fs:SetPoint("RIGHT", card, "LEFT", 470, 0)
+    card.lines[i] = fs
   end
 
-  -- "where to learn": one trainer per line, the dot sets a waypoint
-  local half = math.floor((W - PAD * 2) / 2)
+  -- right: where to learn it (learn first), one place per line, dot = waypoint
+  card.spotsTitle = T.Text(card, "Body", "info")
+  card.spotsTitle:SetPoint("TOPLEFT", 480, -88)
+  card.spotsTitle:SetText("Learn it from:")
   card.spots = {}
   for i = 1, 3 do
     local sp = CreateFrame("Frame", nil, card)
     sp:SetHeight(18)
-    sp:SetPoint("TOPLEFT", half + 6, -150 - (i - 1) * 20)
+    sp:SetPoint("TOPLEFT", 480, -110 - (i - 1) * 20)
     sp:SetPoint("RIGHT", -14, 0)
     sp.pin = T.Pin(sp, 14)
     sp.pin:SetPoint("LEFT", -4, 0)
-    sp.dot = T.Fill(sp, T.C.accent, "ARTWORK")
-    sp.dot:SetSize(6, 6)
-    sp.dot:SetPoint("LEFT", 0, 0)
     sp.text = T.Text(sp, "Small", "text")
     sp.text:SetPoint("LEFT", 16, 0)
     sp.text:SetPoint("RIGHT")
     card.spots[i] = sp
   end
-  card.half = half
+
+  -- the main action
+  card.craft = T.Button(card, "Craft", "primary", 200, 32)
+  card.craft:SetPoint("BOTTOMRIGHT", -14, 14)
+  card.craft:SetScript("OnClick", function() ns.DoCraftAction(card.model); f:Render() end)
+  T.Tooltip(card.craft, "Craft", function()
+    local a = card.model and ns.CraftAction(card.model)
+    if not a then return nil end
+    if a.count == 0 and a.enabled then
+      return "Opens your profession window first (the game only lets addons craft while it's open), then click again to craft."
+    end
+    return "Crafts as many as this step still needs, limited by the materials in your bags. Moving or casting something else stops it."
+  end)
 
   card.empty = T.Text(card, "Body", "muted", "CENTER")
   card.empty:SetPoint("CENTER")
@@ -301,15 +277,15 @@ local function create()
   card.empty:SetWidth(W - 120)
 
   -- tabs + content ------------------------------------------------------------
-  f.tabs = T.Tabs(f, { { "plan", "Route" }, { "mats", "Materials" }, { "shop", "Shopping" }, { "train", "Trainers" } },
+  f.tabs = T.Tabs(f, { { "plan", "Route" }, { "shop", "Shopping" }, { "train", "Trainers" } },
     function() return ns.settings.tab end,
     function(v) ns.settings.tab = v; f:Render() end)
-  f.tabs:SetPoint("TOPLEFT", PAD, -330)
-  f.tabs:SetPoint("TOPRIGHT", -PAD, -330)
+  f.tabs:SetPoint("TOPLEFT", PAD, -100 - CARD_H - 10)
+  f.tabs:SetPoint("TOPRIGHT", -PAD, -100 - CARD_H - 10)
 
   local area = CreateFrame("Frame", nil, f)
-  area:SetPoint("TOPLEFT", PAD, -366)
-  area:SetPoint("BOTTOMRIGHT", -PAD, 128)
+  area:SetPoint("TOPLEFT", PAD, -100 - CARD_H - 46)
+  area:SetPoint("BOTTOMRIGHT", -PAD, 104)
   f.area = area
 
   local scroll = CreateFrame("ScrollFrame", nil, area)
@@ -329,15 +305,19 @@ local function create()
 
   -- footer --------------------------------------------------------------------
   local frule = T.Fill(f, T.C.border, "ARTWORK")
-  frule:SetPoint("BOTTOMLEFT", 1, 120)
-  frule:SetPoint("BOTTOMRIGHT", -1, 120)
+  frule:SetPoint("BOTTOMLEFT", 1, 96)
+  frule:SetPoint("BOTTOMRIGHT", -1, 96)
   frule:SetHeight(1)
 
-  -- row 1: totals
+  -- row 1: the total (breakdown on hover)
   f.totalText = T.Text(f, "Header", "text")
-  f.totalText:SetPoint("BOTTOMLEFT", PAD, 88)
-  f.totalSub = T.Text(f, "Small", "muted")
-  f.totalSub:SetPoint("BOTTOMLEFT", PAD, 66)
+  f.totalText:SetPoint("BOTTOMLEFT", PAD, 68)
+  f.totalHit = CreateFrame("Frame", nil, f)
+  f.totalHit:SetPoint("TOPLEFT", f.totalText, "TOPLEFT", -4, 4)
+  f.totalHit:SetPoint("BOTTOMRIGHT", f.totalText, "BOTTOMRIGHT", 4, -4)
+  f.totalHit:EnableMouse(true)
+  f.totalHit:SetScript("OnEnter", function(self) if f.totalTip then T.ShowHover(self, "Route cost", f.totalTip) end end)
+  f.totalHit:SetScript("OnLeave", function() T.HideHover() end)
 
   -- row 2: scan status + scan buttons
   local brule = T.Fill(f, T.C.border, "ARTWORK")
@@ -430,15 +410,16 @@ local function create()
     local c = self.card
     local target = ns.Target()
     c.skill:SetText(("%s / %d"):format(rank or "?", target))
-    c.skillSub:SetText(maxSkill and ("current cap " .. maxSkill) or "")
     c.total:SetValue(rank and rank / target or 0)
+    c.model, c.tip, c.tipTitle = nil, nil, nil
     local shown = p ~= nil
     for _, k in ipairs({ "icon", "kicker", "name", "sub" }) do c[k]:SetShown(shown) end
-    for _, t in ipairs(c.tiles) do t:SetShown(shown) end
     c.empty:SetShown(not shown)
     if not shown then
-      for _, a in ipairs(c.alerts) do a:Hide() end
+      for _, fs in ipairs(c.lines) do fs:Hide() end
       for _, sp in ipairs(c.spots) do sp:Hide() end
+      c.spotsTitle:Hide()
+      c.craft:Hide()
       if ns.needsScan then
         c.empty:SetText("Waiting for prices - see below.")
       else
@@ -447,68 +428,51 @@ local function create()
       return
     end
     local m = ns.NowModel(p)
+    c.model = m
     local prof = ns.Prof()
     local L = m.learnFirst
+    local lines = {}
     if L then
-      c.kicker:SetText(T.Color("accent", "LEARN FIRST"))
+      c.kicker:SetText("LEARN FIRST")
       c.icon:SetIcon(L.kind == "trainer" and "Interface\\Icons\\INV_Misc_Book_09" or "Interface\\Icons\\INV_Scroll_03")
-      c.name:SetText(T.Color("accent", m.name))
-      c.sub:SetText(("%s  ·  %s  ·  then craft about %d (skill %d to %d)"):format(L.title, ns.Money(L.cost, true),
-        m.left, m.stepFrom, m.stepTo))
+      c.name:SetText(m.name)
+      c.sub:SetText(("%s  ·  %s"):format(L.title, L.cost > 0 and ns.Money(L.cost, true) or "free"))
     else
       c.kicker:SetText("CRAFT NOW")
       c.icon:SetIcon(m.recipe.make and m.recipe.make[1] or profIcon(prof))
       c.name:SetText("|cff" .. m.color .. m.name .. "|r")
-      c.sub:SetText(("Skill %d to %d  ·  %s  ·  known"):format(m.stepFrom, m.stepTo, m.diff))
+      c.sub:SetText(("Skill %d to %d  ·  about %d crafts left"):format(m.from, m.stepTo, m.left))
+      c.tipTitle, c.tip = m.name, ns.NowTip(m)
     end
-    local t = c.tiles
-    t[1].value:SetText(ns.Pct(m.chance))
-    t[1].sub:SetText(("%.1f per point"):format(m.tries))
-    t[2].value:SetText(tostring(m.left))
-    t[2].sub:SetText(("90%%: %d"):format(m.safe))
-    t[3].value:SetText(("%d%%"):format(math.floor(m.stepPct * 100 + 0.5)))
-    t[3].sub:SetText("")
-    c.stepBar:SetValue(m.stepPct)
-    t[4].value:SetText(tostring(m.crafted))
-    t[4].sub:SetText("this step")
-    local alerts = {}
-    -- learn first: the places go in their own column on the right
+    if m.rank then table.insert(lines, T.Color(m.rank.tone, m.rank.text)) end
+    if not L then
+      for _, line in ipairs(m.checklist) do table.insert(lines, line) end
+    end
+    for _, A in ipairs(m.learnAlso) do
+      table.insert(lines, ("Also learn %s: %s %s"):format(A.recipe.name, A.title, ns.Money(A.cost, true)))
+    end
+    for i, fs in ipairs(c.lines) do
+      fs:SetText(lines[i] or "")
+      fs:SetShown(lines[i] ~= nil)
+    end
+    -- learn first: where, on the right
     local spots = L and L.where or {}
+    c.spotsTitle:SetShown(#spots > 0)
     for i, sp in ipairs(c.spots) do
       local w = spots[i]
       if w then
-        local spot = L.spots and L.spots[i]
-        sp.pin:SetSpot(spot)
-        sp.dot:SetShown(not sp.pin:IsShown())
-        sp.text:SetText(w)
+        sp.pin:SetSpot(L.spots and L.spots[i])
+        sp.text:SetText(sp.pin:IsShown() and w or (T.Muted("-  ") .. w))
         sp:Show()
       else
         sp:Hide()
       end
     end
-    for _, a in ipairs(c.alerts) do
-      a:SetPoint("RIGHT", c, "LEFT", #spots > 0 and (c.half - 10) or (W - PAD * 2 - 14), 0)
-    end
-    for _, A in ipairs(m.learnAlso) do
-      table.insert(alerts, { "accent", ("Also learn %s: %s %s"):format(A.recipe.name, A.title, ns.Money(A.cost, true)) })
-    end
-    if m.missing then
-      table.insert(alerts, { "bad", ("Missing for this step: %s"):format(m.missing) })
-    else
-      table.insert(alerts, { "good", "All materials for this step are in your bags or bank." })
-    end
-    if m.rank then table.insert(alerts, { m.rank.tone, m.rank.text }) end
-    if #alerts < 3 and m.nextText then table.insert(alerts, { "muted", m.nextText }) end
-    for i, a in ipairs(c.alerts) do
-      local al = alerts[i]
-      if al then
-        a.dot:SetVertexColor(unpack(T.C[al[1]]))
-        a.text:SetText(al[2])
-        a.text:SetTextColor(unpack(al[1] == "muted" and T.C.muted or T.C.text))
-        a:Show()
-      else
-        a:Hide()
-      end
+    local a = ns.CraftAction(m)
+    c.craft:SetShown(a ~= nil)
+    if a then
+      c.craft:SetText(a.text)
+      c.craft:SetEnabled(a.enabled)
     end
   end
 
@@ -517,11 +481,11 @@ local function create()
     local prof = ns.Prof()
     local rank, maxSkill = ns.ReadSkill()
     local owned = ns.Owned()[prof.key]
-    self.prof:SetValue(ns.ProfName(prof), profIcon(prof), owned and (owned.rank .. " / " .. owned.max) or "not learned")
+    self.prof:SetValue(ns.ProfName(prof), profIcon(prof), not owned and "not learned" or nil)
+    if s.tab == "mats" then s.tab = "shop" end
     if not self.target:HasFocus() then self.target:SetText(ns.Target()) end
     self.mode:Refresh()
     self.tabs:Refresh()
-    self.trackerBtn:SetText(ns.Tracker:IsShown() and "Hide tracker" or "Show tracker")
 
     local scanning = ns.Prices.scanning
     self.scan:SetText(scanning and ns.Prices.mode ~= "full" and "Stop" or "Scan AH")
@@ -541,7 +505,7 @@ local function create()
     if gated then
       self.onboarding:Refresh()
       self.totalText:SetText("")
-      self.totalSub:SetText("")
+      self.totalTip = nil
       return
     end
 
@@ -549,19 +513,20 @@ local function create()
     if not (res and res.ok) then
       entries = { { kind = "callout", tone = "bad", text = ns.computeError or "Nothing to show." } }
       self.totalText:SetText("")
-      self.totalSub:SetText("")
+      self.totalTip = nil
     else
       local build = ns.UI.Lines[s.tab] or ns.UI.Lines.plan
       entries = build(res, prof, p)
       local t = res.totals
       local totalLabel = t.total < 0 and ("Profit " .. T.Color("good", ns.Money(-t.total, true)))
         or ("Total " .. ns.Money(t.total, true))
-      self.totalText:SetText(("%s     about %d crafts     %s"):format(totalLabel, t.crafts,
-        T.Color("accent", "about " .. ns.Duration(t.time) .. " crafting")))
-      self.totalSub:SetText(("Materials %s     Recipes %s%s     %s"):format(
-        ns.Money(t.materials, true), ns.Money(t.learn, true),
-        (s.sellBack and (t.sellBack or 0) > 0) and ("     Sell back -" .. ns.Money(t.sellBack, true)) or "",
-        T.Muted(MODE_LABEL[s.mode])))
+      self.totalText:SetText(("%s   ·   about %d crafts   ·   about %s"):format(totalLabel, t.crafts, ns.Duration(t.time)))
+      local back = (s.sellBack and (t.sellBack or 0) > 0) and t.sellBack or 0
+      -- the breakdown, amounts right-aligned
+      self.totalTip = { { "Materials", ns.Money(t.materials, true) }, { "Recipes", "+ " .. ns.Money(t.learn, true) } }
+      if back > 0 then table.insert(self.totalTip, { "Sold to vendor", "- " .. ns.Money(back, true) }) end
+      table.insert(self.totalTip, "---")
+      table.insert(self.totalTip, t.total < 0 and { "Profit", ns.Money(-t.total, true) } or { "Total", ns.Money(t.total, true) })
     end
     self.rows:Set(entries)
   end
@@ -571,213 +536,217 @@ local function create()
 end
 
 ------------------------------------------------------------- row builders
-local function haveText(have, bank)
-  if bank and bank > 0 then return ("%d %s"):format(have, T.Muted(("+%d bank"):format(bank))) end
-  return tostring(have)
-end
-
--- one indented line per place to learn something, the dot sets a waypoint
-local function placeRows(out, L)
-  for i, w in ipairs(L.where) do
-    local spot = L.spots and L.spots[i]
-    table.insert(out, { kind = "row", indent = true, pin = spot,
-      title = (spot and spot.map) and w or (T.Muted("-  ") .. w) })
-  end
-end
-
-local function learnText(st)
-  if st.learnHow == "known" then return T.Color("good", "known") end
-  if st.learnHow == "starter" then return T.Color("good", "starter") end
-  if st.learnHow == "Quest" then return T.Color("accent", "quest reward") end
-  if st.learnCost > 0 then return st.learnHow .. " " .. ns.Money(st.learnCost, true) end
-  return "learned earlier"
-end
-
-local function trainerTierFor(learn)
-  if learn < 75 then return 1 end
-  if learn < 150 then return 2 end
-  if learn < 225 then return 3 end
-  return 4
-end
-
-local function ageText(sec)
-  if sec < 3600 then return math.floor(sec / 60) .. "m ago" end
-  if sec < 86400 then return math.floor(sec / 3600) .. "h ago" end
-  return math.floor(sec / 86400) .. "d ago"
-end
-
 local Lines = {}
 
--- Route: every step, current one highlighted, rank reminders inline.
+-- tooltip lines: where to learn a recipe
+local function learnTip(L)
+  local out = { L.title .. "  ·  " .. ns.Money(L.cost, true) }
+  for _, w in ipairs(L.where) do table.insert(out, "-  " .. w) end
+  table.insert(out, "Trainers tab: click a dot to set a waypoint.")
+  return out
+end
+
+-- Hover card for a recipe on the route: materials, time, and where to learn it.
+local READY = "|TInterface\\RaidFrame\\ReadyCheck-Ready:14:14|t "
+local SHORT = "|TInterface\\RaidFrame\\ReadyCheck-NotReady:14:14|t "
+
+-- L: where to get the recipe (nil when you already know it)
+local function recipeHover(r, crafts, time, L, color)
+  local known = ns.Known()[r.id] ~= nil or not L
+  local lines = {}
+  -- materials only once you know the recipe
+  if known then
+    table.insert(lines, T.Muted("Materials"))
+    for _, rg in ipairs(r.reag) do
+      table.insert(lines, ("|T%s:16:16|t  %d  %s"):format(T.ItemIcon(rg[1]), rg[2] * crafts, ns.ItemName(rg[1])))
+    end
+    table.insert(lines, "")
+  end
+  table.insert(lines, T.Muted(("%d crafts  ·  about %s"):format(crafts, ns.Duration(time))))
+  -- the recipe: green if you know it, red (with where to get it) if not
+  table.insert(lines, "")
+  table.insert(lines, known and (READY .. T.Color("good", "Recipe")) or (SHORT .. T.Color("bad", "Recipe")))
+  if not known then
+    for _, w in ipairs(L.where) do table.insert(lines, "-  " .. w) end
+  end
+  return { title = color and ("|cff" .. color .. r.name .. "|r") or r.name, lines = lines }
+end
+
+-- Route: one row per step: skill range | recipe | crafts | cost.
+-- Materials, time and where to learn it are in the hover card.
 function Lines.plan(res, prof, p)
-  local out = {}
+  local out = { { kind = "header", range = "Skill", icon = true, title = "Recipe", c2 = "Crafts", c3 = "Cost" } }
   local ranks, noted = prof.ranks or {}, {}
-  table.insert(out, { kind = "note", text = ("%s route from %d to %d. \"90%%\" = attempts that cover 9 in 10 players."):format(
-    MODE_LABEL[res.mode], res.from, res.to) })
   for i, st in ipairs(res.steps) do
     for k, rk in ipairs(ranks) do
       if not noted[k] and res.from < rk.cap and st.to > rk.skill then
         noted[k] = true
-        table.insert(out, { kind = "callout", tone = "info", text = ("Learn %s before %d  -  needs skill %d%s. %s"):format(
-          rk.next, rk.cap, rk.skill, rk.level and (" and level " .. rk.level) or "",
-          rk.how and "From a book/quest: see Trainers." or "See Trainers.") })
+        -- training is a step too: at this skill, learn the next rank
+        table.insert(out, { kind = "row", range = T.Color("info", ("%d - %d"):format(rk.skill, rk.cap)),
+          icon = "Interface\\Icons\\INV_Misc_Book_09",
+          title = T.Color("info", "Train " .. rk.next) .. (rk.level and T.Muted(("  ·  level %d"):format(rk.level)) or ""),
+          hover = { title = "Train " .. rk.next, lines = {
+            ("Needs skill %d%s. Raises your cap from %d."):format(rk.skill, rk.level and (" and level " .. rk.level) or "", rk.cap),
+            T.Muted(rk.how or "Any trainer in the Trainers tab teaches it.") } } })
       end
     end
     local r = st.recipe
     local _, color = ns.Difficulty(r, st.from)
-    local learnHere = st.mustLearn and not ns.Known()[r.id]
-    if learnHere then
-      local L = ns.LearnInfo(r, st.learnHow, st.learnCost)
-      table.insert(out, {
-        kind = "row", active = i == 1, range = T.Color("accent", "learn"),
-        icon = L.kind == "trainer" and "Interface\\Icons\\INV_Misc_Book_09" or "Interface\\Icons\\INV_Scroll_03",
-        title = T.Color("accent", "Learn " .. r.name),
-        c2 = L.title, c3 = ns.Money(L.cost, true),
-      })
-      placeRows(out, L)
-    end
-    local mats = {}
-    for _, rg in ipairs(r.reag) do table.insert(mats, (rg[2] * st.crafts) .. " " .. ns.ItemName(rg[1])) end
+    local L = (st.mustLearn and not ns.Known()[r.id]) and ns.LearnInfo(r, st.learnHow, st.learnCost) or nil
     table.insert(out, {
-      kind = "row", active = i == 1 and not learnHere, range = ("%d - %d"):format(st.from, st.to),
+      kind = "row", active = i == 1, range = ("%d - %d"):format(st.from, st.to),
       item = r.make and r.make[1], icon = not r.make and profIcon(prof) or nil,
-      title = r.name .. ((r.make and r.make[2] > 1) and T.Muted(("  makes %d"):format(r.make[2])) or ""),
-      titleColor = color, sub = table.concat(mats, ", "),
-      c2 = ("%d crafts"):format(st.crafts), c2sub = ("90%%: %d  ·  %s"):format(st.safe, ns.Duration(st.time)),
-      c3 = ns.Money(st.cost, true), c3sub = learnHere and T.Color("accent", "learn first") or learnText(st),
+      title = "|cff" .. color .. r.name .. "|r",
+      c2 = ("%d crafts"):format(st.crafts), c3 = ns.Money(st.cost, true),
+      hover = recipeHover(r, st.crafts, st.time, L, color),
     })
   end
   if #res.intermediates > 0 then
     table.insert(out, { kind = "section", text = "Craft along the way", right = T.Muted("cheaper than buying") })
     for _, cr in ipairs(res.intermediates) do
+      local L = cr.mustLearn and ns.LearnInfo(cr.recipe, "Trainer", cr.recipe.cost) or nil
       table.insert(out, { kind = "row", item = cr.recipe.make and cr.recipe.make[1], title = cr.recipe.name,
-        sub = cr.mustLearn and T.Color("accent", "learn first: " .. ns.LearnInfo(cr.recipe, "Trainer", cr.recipe.cost).text) or nil,
-        c2 = ("%d crafts"):format(cr.crafts), c2sub = ("90%%: %d  ·  %s"):format(cr.safe, ns.Duration(cr.time)) })
+        c2 = ("%d crafts"):format(cr.crafts), hover = recipeHover(cr.recipe, cr.crafts, cr.time, L) })
     end
   end
   return out
 end
 
-local function matRows(out, mats, res, learn)
-  for _, m in ipairs(mats) do
-    table.insert(out, {
-      kind = "row", item = m.id, title = ns.ItemName(m.id),
-      sub = (function()
-        local unit, how = res.itemCost(m.id, learn)
-        if not unit then return ("%d per craft"):format(m.per) end
-        return ("%d per craft  ·  %s each  ·  %s"):format(m.per, ns.Money(unit), ns.Prices:SourceText(m.id, how))
-      end)(),
-      c2 = "have " .. haveText(m.have, m.bank), c2sub = ("need %d  ·  90%%: %d"):format(m.need, m.needSafe),
-      c3 = m.missing > 0 and T.Color("bad", ("missing %d"):format(m.missing)) or T.Color("good", "ready"),
-    })
-    if m.craft then
-      local cr = m.craft.recipe
-      local unknown = not ns.Known()[cr.id] and not (cr.src:find("s") and not next(ns.Known()))
-      table.insert(out, { kind = "row", indent = true, item = cr.make and cr.make[1],
-        title = T.Color("accent", ("Craft %d x %s"):format(m.craft.n, cr.name)),
-        sub = unknown and ("learn it first: " .. ns.LearnInfo(cr, "Trainer", cr.cost).text) or "cheaper than buying it" })
-      for _, sub in ipairs(m.craft.sub) do
-        table.insert(out, { kind = "row", indent = true, item = sub.id, title = ns.ItemName(sub.id),
-          c2 = "have " .. haveText(sub.have, sub.bank), c2sub = ("need %d"):format(sub.need),
-          c3 = sub.missing > 0 and T.Color("bad", ("missing %d"):format(sub.missing)) or T.Color("good", "ready") })
+-- Shopping: this step first (what to buy right now), then the rest of the
+-- route. Columns: item | have/need | buy.
+function Lines.shop(res, prof, p)
+  local out = {}
+  local now = {}   -- item id -> amount the current step needs (raw buys)
+  local function shopRow(id, need, have, unit, how)
+    local missing = math.max(0, need - have)
+    return {
+      kind = "row", item = id, title = ns.ItemName(id),
+      sub = unit and (ns.Money(unit) .. " each  ·  " .. (how == "vendor" and "Vendor" or how == "craft" and "Craft" or "AH")) or nil,
+      tip = unit and { "Price: " .. ns.Prices:SourceText(id, how) } or nil,
+      c2 = T.Color(missing > 0 and "bad" or "good", ("%d/%d"):format(math.min(have, need), need)),
+      c3 = missing > 0 and ("buy %d"):format(missing) or T.Color("good", "ready"),
+      c3sub = (missing > 0 and unit) and ns.Money(missing * unit, true) or nil,
+    }
+  end
+  local unitOf = {}
+  for _, e in ipairs(res.shopping) do unitOf[e.id] = e end
+
+  if p then
+    table.insert(out, { kind = "section", text = "This step: " .. p.recipe.name })
+    table.insert(out, { kind = "header", icon = true, title = "Item", c2 = "Have", c3 = "Buy" })
+    for _, m in ipairs(p.mats) do
+      local all = (m.have or 0) + (m.bank or 0)
+      if m.craft then
+        local cr = m.craft.recipe
+        local row = shopRow(m.id, m.need, all)
+        row.c3 = m.missing > 0 and ("craft %d"):format(m.craft.n) or row.c3
+        row.sub = "Craft yourself (cheaper)"
+        if not ns.Known()[cr.id] and not (cr.src:find("s") and not next(ns.Known())) then
+          row.sub = "Craft yourself (cheaper)  ·  learn it first"
+          row.tip = learnTip(ns.LearnInfo(cr, "Trainer", cr.cost))
+        end
+        table.insert(out, row)
+        if m.missing > 0 then
+          for _, sub in ipairs(m.craft.sub) do
+            local e = unitOf[sub.id]
+            local r = shopRow(sub.id, sub.need, (sub.have or 0) + (sub.bank or 0), e and e.unit, e and e.how)
+            r.indent = true
+            table.insert(out, r)
+            now[sub.id] = (now[sub.id] or 0) + sub.need
+          end
+        end
+      else
+        local e = unitOf[m.id]
+        table.insert(out, shopRow(m.id, m.need, all, e and e.unit, e and e.how))
+        now[m.id] = (now[m.id] or 0) + m.need
       end
     end
   end
-end
 
--- Materials: what this step (and the next) needs vs. your bags and bank.
-function Lines.mats(res, prof, p)
-  local out = {}
-  if not p then return { { kind = "note", text = "No current step." } } end
-  table.insert(out, { kind = "section", text = "Now: " .. p.recipe.name,
-    right = T.Muted(("skill %d to %d  ·  about %d crafts"):format(p.stepFrom, p.stepTo, p.step.crafts)) })
-  matRows(out, p.mats, res, p.recipe.learn)
-  if p.next and p.nextMats then
-    table.insert(out, { kind = "section", text = "Next: " .. p.next.recipe.name,
-      right = T.Muted(("skill %d to %d  ·  about %d crafts"):format(p.next.from, p.next.to, p.next.crafts)) })
-    matRows(out, p.nextMats, res, p.next.recipe.learn)
-  end
-  table.insert(out, { kind = "space" })
-  table.insert(out, { kind = "note", text = "The Shopping tab adds up everything for the whole route." })
-  return out
-end
-
--- Shopping: the whole route, with what you have and where prices come from.
-function Lines.shop(res)
-  local out = {}
-  local realm = ns.Prices:Realm().ah
-  local missingCost = 0
-  local rows = {}
+  -- the rest of the route: what's left after this step
+  local rows, missingCost = {}, 0
   for _, e in ipairs(res.shopping) do
-    local bags, all = ns.Count(e.id)
-    local missing = math.max(0, e.qty - all)
-    missingCost = missingCost + missing * (e.unit or 0)
-    local src = ns.Prices:SourceText(e.id, e.how)
-    table.insert(rows, {
-      kind = "row", item = e.id, title = ns.ItemName(e.id),
-      sub = ns.Money(e.unit) .. " each  ·  " .. src,
-      c2 = ("need %d"):format(e.qty), c2sub = ("90%%: %d  ·  have %d"):format(e.safe, all),
-      c3 = missing > 0 and T.Color("bad", ("buy %d"):format(missing)) or T.Color("good", "ready"),
-      c3sub = missing > 0 and ns.Money(missing * (e.unit or 0), true) or nil,
-    })
+    local qty = e.qty - (now[e.id] or 0)
+    if qty > 0 then
+      local _, all = ns.Count(e.id)
+      local have = math.max(0, all - (now[e.id] or 0))
+      missingCost = missingCost + math.max(0, qty - have) * (e.unit or 0)
+      table.insert(rows, shopRow(e.id, qty, have, e.unit, e.how))
+    end
   end
-  table.insert(out, { kind = "section", text = "Whole route", right = "still to buy: " .. ns.Money(missingCost, true) })
-  for _, r in ipairs(rows) do table.insert(out, r) end
+  if #rows > 0 then
+    table.insert(out, { kind = "section", text = "Rest of the route", right = "to buy: " .. ns.Money(missingCost, true) })
+    table.insert(out, { kind = "header", icon = true, title = "Item", c2 = "Have", c3 = "Buy" })
+    for _, r in ipairs(rows) do table.insert(out, r) end
+  end
   if res.reused and #res.reused > 0 then
     table.insert(out, { kind = "section", text = "Made earlier on this route", right = T.Muted("keep them, don't sell") })
     for _, u in ipairs(res.reused) do
-      table.insert(out, { kind = "row", item = u.id, title = ns.ItemName(u.id),
-        sub = "You craft these in an earlier step and use them later - not bought, not sold.",
-        c2 = ("keep %d"):format(u.qty) })
+      table.insert(out, { kind = "row", item = u.id, title = ns.ItemName(u.id), c3 = ("keep %d"):format(u.qty) })
     end
   end
   return out
 end
 
--- Trainers: next rank, who teaches it, and where to learn each recipe.
+-- Trainers: one question - who do I visit, and what do I learn there?
+--   1. next rank: can you learn it yet
+--   2. trainers: each listed once (one per zone), with the highest rank they teach
+--   (where to get each recipe is in the Route tab's hover card)
+local RANK_NAME = { [0] = "may teach", [1] = "Apprentice", [2] = "Journeyman", [3] = "Expert", [4] = "Artisan" }
+
 function Lines.train(res, prof, p)
   local out = {}
   local rank, maxSkill = ns.ReadSkill()
   local nr = p and p.nextRank or ns.NextRank(rank or 1, maxSkill)
+  local need = 1  -- lowest trainer rank that covers what you need next
   if nr then
     local rk = nr.rank
-    table.insert(out, { kind = "section", text = "Next rank: " .. rk.next, right = T.Muted(("raises the cap from %d"):format(rk.cap)) })
-    local need = { ("skill %d %s"):format(rk.skill, (rank or 0) >= rk.skill and T.Color("good", "ok") or T.Color("bad", ("(you: %d)"):format(rank or 0))) }
-    if rk.level then
-      table.insert(need, ("level %d %s"):format(rk.level, nr.level >= rk.level and T.Color("good", "ok") or T.Color("bad", ("(you: %d)"):format(nr.level))))
-    end
+    local missing = {}
+    if (rank or 0) < rk.skill then table.insert(missing, ("skill %d (you: %d)"):format(rk.skill, rank or 0)) end
+    if rk.level and nr.level < rk.level then table.insert(missing, ("level %d (you: %d)"):format(rk.level, nr.level)) end
+    table.insert(out, { kind = "section", text = "Next rank: " .. rk.next })
     table.insert(out, { kind = "callout", tone = nr.ready and "good" or "info",
-      text = (nr.ready and "You can learn it now.  " or "Not yet.  ") .. "Needs " .. table.concat(need, ", ") })
+      text = nr.ready and ("You can learn it now. It raises your cap from %d."):format(rk.cap)
+        or ("Not yet: needs " .. table.concat(missing, ", ") .. ".") })
     if rk.how then
       table.insert(out, { kind = "row", icon = "Interface\\Icons\\INV_Misc_Book_09", title = "Not taught by trainers", sub = rk.how })
-      table.insert(out, { kind = "note", text = "Forever may have changed this - check Wowhead if it isn't there." })
     else
-      for _, t in ipairs(nr.trainers) do
-        table.insert(out, { kind = "row", icon = profIcon(prof), title = t.name, sub = t.zone,
-          pin = t, c3 = t.maybe and T.Muted("may teach it") or nil })
-      end
+      need = rk.tier or need
     end
   else
     table.insert(out, { kind = "callout", tone = "good", text = "No more ranks to train." })
   end
 
-  if not res then return out end
-  table.insert(out, { kind = "section", text = "Recipes to learn on this route" })
-  local any
-  for _, st in ipairs(res.steps) do
-    if st.learnCost > 0 or st.learnHow == "Quest" then
-      any = true
+  -- recipes still to learn on the route
+  local recipes = {}
+  if res then
+    for _, st in ipairs(res.steps) do
       local r = st.recipe
-      local L = ns.LearnInfo(r, st.learnHow, st.learnCost)
-      local done = ns.Known()[r.id]
-      table.insert(out, { kind = "row", item = r.make and r.make[1],
-        title = done and (r.name .. "  " .. T.Color("good", "learned")) or r.name,
-        sub = L.title,
-        c2 = ("at %d"):format(st.from), c3 = ns.Money(st.learnCost, true) })
-      if not done then placeRows(out, L) end
+      if (st.learnCost > 0 or st.learnHow == "Quest") and not ns.Known()[r.id] then
+        local L = ns.LearnInfo(r, st.learnHow, st.learnCost)
+        table.insert(recipes, { st = st, L = L })
+        if L.kind == "trainer" and not nr then need = math.max(need, L.tier) end
+      end
     end
   end
-  if not any then table.insert(out, { kind = "note", text = "None - you know everything on the route." }) end
+  if nr and nr.rank.how then
+    for _, x in ipairs(recipes) do if x.L.kind == "trainer" then need = math.max(need, x.L.tier) end end
+  end
+
+  -- trainers: once each, nearest first
+  if not (nr and nr.rank.how) or #recipes > 0 then
+    table.insert(out, { kind = "section", text = "Trainers", right = T.Muted("click the dot for a waypoint") })
+    table.insert(out, { kind = "header", pin = true, title = "Trainer", c2 = "Zone", c3 = "Teaches up to" })
+    local zones, n = {}, 0
+    for _, t in ipairs(ns.TrainersFor(need)) do
+      if not zones[t.zone] and n < 6 then
+        zones[t.zone] = true
+        n = n + 1
+        table.insert(out, { kind = "row", pin = t, title = t.name, c2 = t.zone, c3 = T.Muted(RANK_NAME[t.tier or 0] or "") })
+      end
+    end
+  end
+
   return out
 end
 
@@ -809,20 +778,24 @@ function UI:CardText()
     table.insert(out, c.kicker:GetText() or "")
     table.insert(out, c.name:GetText() or "")
     table.insert(out, c.sub:GetText() or "")
-    for _, t in ipairs(c.tiles) do
-      table.insert(out, (t.label:GetText() or "") .. " " .. (t.value:GetText() or "") .. " " .. (t.sub:GetText() or ""))
-    end
   end
+  for _, fs in ipairs(c.lines) do
+    if fs:IsShown() then table.insert(out, fs:GetText() or "") end
+  end
+  if c.spotsTitle:IsShown() then table.insert(out, c.spotsTitle:GetText() or "") end
   for _, sp in ipairs(c.spots) do
-    if sp:IsShown() then table.insert(out, (sp.pin:IsShown() and "(pin) " or "- ") .. (sp.text:GetText() or "")) end
+    if sp:IsShown() then table.insert(out, (sp.pin:IsShown() and "(pin) " or "") .. (sp.text:GetText() or "")) end
   end
-  for _, a in ipairs(c.alerts) do
-    if a:IsShown() then table.insert(out, a.text:GetText() or "") end
+  if c.craft:IsShown() then
+    table.insert(out, "[" .. (c.craft:GetText() or "") .. (c.craft:IsEnabled() and "" or " (disabled)") .. "]")
   end
   return table.concat(out, "\n")
 end
 function UI:FooterText()
-  return f and ((f.totalText:GetText() or "") .. " | " .. (f.totalSub:GetText() or "")) or ""
+  if not f then return "" end
+  local parts = {}
+  for _, l in ipairs(f.totalTip or {}) do table.insert(parts, type(l) == "table" and (l[1] .. " " .. l[2]) or l) end
+  return (f.totalText:GetText() or "") .. " | " .. table.concat(parts, " / ")
 end
 
 -- A small button on the profession window.

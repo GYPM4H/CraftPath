@@ -87,39 +87,36 @@ A small panel to keep on screen while you craft (shown at login and when you
 open your profession window; `/cpath tracker` toggles it, `/cpath lock` locks
 it, right-click opens the planner):
 
-- skill progress toward your target, and progress through the current step
-- the current craft, colored by difficulty
-- skill-up chance right now and attempts per point
-- attempts left in this step (average and 90%), and how many you've crafted
-- what's missing for this step, with bags and bank counted
-- when you need to train the next rank, and the nearest trainer
-- what comes next
+- skill progress toward your target
+- the current craft, colored by difficulty, and about how many crafts are left
+- a have/need checklist of materials, with bags and bank counted
+- when you need to train the next rank
+- a **Craft** button (opens the profession window first if needed)
 
 ### Main window
 
 - **Header:** profession dropdown, Options (gear) and close.
-- **Controls:** target skill, planning mode (Balanced / Cheapest / Fastest),
-  and a button to show or hide the tracker.
-- **Now card:** the recipe to craft now in its difficulty color, skill
-  progress, tiles for skill-up chance, attempts left, step progress and
-  crafts this step, plus alerts for missing materials and rank training.
-- **Footer:** route total, scan status, **Full scan** and **Scan AH**.
+- **Controls:** target skill and planning mode (Balanced / Cheapest / Fastest).
+- **Now card:** the recipe to craft now in its difficulty color, your skill,
+  about how many crafts are left, a have/need checklist of materials, rank
+  warnings and a **Craft** button. Hover it for the skill-up chance and the
+  safe (9 in 10 players) number of crafts.
+- **Footer:** route total, crafts and crafting time (hover for the breakdown),
+  scan status, **Full scan** and **Scan AH**.
 - **Options (gear):** sell crafts to vendor, use Auctionator prices, count
   quest recipes, show/lock the tracker, show the minimap button, and text
   size (Normal / Large / Larger).
 
-Below the Now card are four tabs:
+Below the Now card are three tabs:
 
-- **Route**: every step with skill range, recipe, average attempts and 90%
-  attempts, material cost, and how to learn the recipe. The current step is marked.
-- **Materials**: what the current and next step need, compared with your bags
-  and bank, and what's missing. Missing grinding stones and similar items show
-  what to craft them from.
-- **Shopping**: everything for the whole route: what you have, what to buy,
-  unit price and its source.
-- **Trainers**: the next rank (Journeyman/Expert/Artisan), its skill and level
-  requirements, the trainers for your faction who teach it, and where to learn
-  each recipe on the route.
+- **Route**: every step with skill range, recipe, crafts and cost. Hover a
+  recipe for its crafting time and "Recipe" in green (you know it, plus its
+  materials) or red (where to get it).
+- **Shopping**: this step first (have/need, buy or craft), then the rest of
+  the route, with unit price and its source.
+- **Trainers**: whether you can learn the next rank yet, and your faction's
+  trainers, each listed once (one per zone, nearest first) with the highest
+  rank they teach and a waypoint dot.
 
 ### Modes
 
@@ -168,8 +165,9 @@ prices. It never buys or posts.
   until a newer Auctionator scan sees it.
 - **Vendor prices:** recorded when you open a vendor; flux, thread and dye are
   seeded with an approximation until then. Used when cheaper than the AH.
-- The Materials and Shopping tabs show where each price comes from and how
-  old it is, e.g. "Auctionator, today" or "CraftPath scan, 3 h ago".
+- The Shopping tab shows each price and whether it's from the AH or a vendor.
+  Hover an item to see where the price comes from and how old it is, e.g.
+  "Auctionator, today" or "CraftPath scan, 3 h ago".
 
 There are no guessed prices: an item without a price is left out of routes
 until a scan finds it. A profession counts as unscanned until at least a

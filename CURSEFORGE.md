@@ -50,11 +50,10 @@
 
 ### Progress tracker
 A compact on-screen card that follows you while you craft:
-- the current craft and its skill-up chance
-- expected attempts left (average and a safe 90% estimate)
-- materials you're missing (bags and bank)
-- **Craft** and **Craft N** buttons: craft one, or as many as the step still needs
-- when to train the next rank, and where
+- the current craft and about how many crafts are left
+- a have/need checklist of materials (bags and bank)
+- a **Craft** button that crafts as many as the step still needs
+- when to train the next rank
 
 ![CraftPath progress tracker: current craft, chance, attempts left, missing materials and a craft button](https://media.forgecdn.net/attachments/2255/691/gallery-2-tracker-png.png)
 
@@ -70,7 +69,7 @@ A compact on-screen card that follows you while you craft:
 
 ### Clean, modern UI
 - Dark, flat design with larger, readable text (three text sizes).
-- Profession dropdown, tabs for **Plan / Materials / Shopping / Trainers**, item icons and tooltips.
+- Profession dropdown, tabs for **Route / Shopping / Trainers**, item icons and tooltips.
 - Minimap button (works with **MinimapButtonButton** and other button collectors) and the addon compartment.
 
 ---

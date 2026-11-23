@@ -80,6 +80,19 @@ local function materialsFor(res, recipe, crafts, safe)
   return mats, ok
 end
 
+-- Sort order for places: your current zone, then your faction's capitals
+-- (in this order), then everything else.
+local function placeOrder()
+  local here = (GetRealZoneText and GetRealZoneText()) or (GetZoneText and GetZoneText()) or ""
+  local CAPITALS = ns.FactionMask() == 2
+    and { ["Orgrimmar"] = 1, ["Undercity"] = 2, ["Thunder Bluff"] = 3 }
+    or { ["Stormwind City"] = 1, ["Ironforge"] = 2, ["Darnassus"] = 3 }
+  return function(zone)
+    if here ~= "" and zone:find(here, 1, true) then return 0 end
+    return CAPITALS[zone] or 10
+  end
+end
+
 -- Trainers who can teach a rank tier, for your faction.
 function ns.TrainersFor(tier)
   local list = {}
@@ -87,19 +100,13 @@ function ns.TrainersFor(tier)
   for _, t in ipairs(ns.Prof().trainers or {}) do
     local name, ttier, side, zone = t[1], t[2], t[3], t[4]
     if bit.band(side, faction) ~= 0 and (ttier >= tier or ttier == 0) then
-      table.insert(list, { name = name, zone = zone, maybe = ttier == 0, map = t[5], x = t[6], y = t[7] })
+      table.insert(list, { name = name, zone = zone, tier = ttier, maybe = ttier == 0, map = t[5], x = t[6], y = t[7] })
     end
   end
-  -- your current zone first, then your faction's capitals (in this order),
-  -- then everything else
-  local here = (GetRealZoneText and GetRealZoneText()) or (GetZoneText and GetZoneText()) or ""
-  local CAPITALS = faction == 2
-    and { ["Orgrimmar"] = 1, ["Undercity"] = 2, ["Thunder Bluff"] = 3 }
-    or { ["Stormwind City"] = 1, ["Ironforge"] = 2, ["Darnassus"] = 3 }
+  local order = placeOrder()
   local function rank_(t)
     if t.maybe then return 100 end
-    if here ~= "" and t.zone:find(here, 1, true) then return 0 end
-    return CAPITALS[t.zone] or 10
+    return order(t.zone)
   end
   table.sort(list, function(a, b)
     local ra, rb = rank_(a), rank_(b)
@@ -112,10 +119,20 @@ end
 
 -- Up to n trainers for a rank, one per zone: "where can I go" rather than
 -- three names in the same city.
-function ns.TrainerSpots(tier, n)
+-- Does this trainer teach this recipe? Uses the trainer's real list
+-- (Data_TrainerRecipes.lua, from Wowhead) when we have it: in Forever a
+-- Journeyman trainer may teach a recipe learned at 150 but not one at 140.
+function ns.Teaches(t, recipeId)
+  local list = recipeId and ns.TrainerTeaches and ns.TrainerTeaches[t.name]
+  if not list then return true end
+  return list[recipeId] == true
+end
+
+-- recipeId (optional): only trainers who actually teach that recipe.
+function ns.TrainerSpots(tier, n, recipeId)
   local out, zones = {}, {}
   for _, t in ipairs(ns.TrainersFor(tier)) do
-    if not zones[t.zone] then
+    if not zones[t.zone] and ns.Teaches(t, recipeId) then
       zones[t.zone] = true
       table.insert(out, t)
       if #out >= (n or 3) then break end
@@ -168,8 +185,9 @@ function ns.LearnInfo(r, how, cost)
   how = how or "Trainer"
   if how == "Trainer" then
     info.kind = "trainer"
+    info.tier = tierFor(r.learn)
     info.title = ("%s%s trainer"):format(TIER_NAME[tierFor(r.learn)], ns.Prof().key)
-    for _, t in ipairs(ns.TrainerSpots(tierFor(r.learn), 3)) do
+    for _, t in ipairs(ns.TrainerSpots(tierFor(r.learn), 3, r.id)) do
       table.insert(info.where, t.name .. ", " .. t.zone)
       table.insert(info.spots, t)
     end
@@ -189,12 +207,27 @@ function ns.LearnInfo(r, how, cost)
     info.kind = "vendor"
     info.title = "Recipe vendor"
     local seen = r.plan and ns.db.planVendor and ns.db.planVendor[r.plan]
-    if seen then table.insert(info.where, seen.name .. (seen.zone and seen.zone ~= "" and (", " .. seen.zone) or "")) end
-    local faction = ns.FactionMask()
-    for _, v in ipairs(r.vendors or {}) do
-      local name, side, zone = v[1], v[4], v[6]
-      if bit.band(side or 3, faction) ~= 0 and name ~= "vendor" and #info.where < 3 then
-        table.insert(info.where, name .. ((zone and zone ~= "") and (", " .. zone) or ""))
+    if seen then
+      table.insert(info.where, seen.name .. (seen.zone and seen.zone ~= "" and (", " .. seen.zone) or ""))
+      local sp = ns.VendorSpots and ns.VendorSpots[seen.name]
+      info.spots[1] = sp and { name = seen.name, zone = sp[4], map = sp[1], x = sp[2], y = sp[3] } or false
+    end
+    -- your faction's vendors, nearest first (current zone, then capitals)
+    local faction, order, list = ns.FactionMask(), placeOrder(), {}
+    for i, v in ipairs(r.vendors or {}) do
+      local name, side, zone = v[1], v[4], v[6] or ""
+      if bit.band(side or 3, faction) ~= 0 and name ~= "vendor" then
+        table.insert(list, { name = name, zone = zone, rank = order(zone) + (side == 3 and 5 or 0), i = i })
+      end
+    end
+    table.sort(list, function(a, b) if a.rank ~= b.rank then return a.rank < b.rank end return a.i < b.i end)
+    for _, v in ipairs(list) do
+      if #info.where >= 3 then break end
+      if not (seen and seen.name == v.name) then
+        table.insert(info.where, v.name .. (v.zone ~= "" and (", " .. v.zone) or ""))
+        -- map position (Data_Vendors.lua), for the waypoint dot
+        local sp = ns.VendorSpots and ns.VendorSpots[v.name]
+        info.spots[#info.where] = sp and { name = v.name, zone = sp[4], map = sp[1], x = sp[2], y = sp[3] } or false
       end
     end
     if #info.where == 0 then
